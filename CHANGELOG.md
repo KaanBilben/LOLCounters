@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## LC-004 — Arayüz: Havuzum ve Counter ekranları
+Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-003
+
+> ### 2026-11-22 · Claude — İlk arayüz
+> - **Ne:** Havuzum (lane sekmeleri, aramalı şampiyon ızgarası, sürükleyerek sıralama, kaydet) ve Counter (lane + rakip seçimi, öneri kartları, rün/büyü/eşya) ekranları; LoL temalı koyu tasarım
+> - **Neden:** counter aramadan, tek tıkla öneri
+> - **Dosyalar:** src/routes/+page.svelte, src/lib/
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: inceleme bulguları
+> - **Ne:** küçük pencerede (900×620) şampiyon ızgarası sığıyor; boş aramada Enter seçim yapmıyor; klavye odağı (kaldırma, ikonlar, lane seçici); verisi alınamayan şampiyon "Alınamadı" olarak gösteriliyor ve sonuç önbelleğe alınmıyor; sürükle-bırak için `dragDropEnabled: false`
+> - **Dosyalar:** src/lib/*.svelte, src-tauri/tauri.conf.json
+> - **Commit:** —
+
 ## LC-003 — Puanlama ve havuz kaydı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002
 
@@ -7,7 +21,7 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002
 > - **Ne:** düzeltilmiş kazanma oranı + tercih bonusu ile sıralama ve etiketler; lane başına şampiyon havuzunun diske kaydı; Tauri komutları (`recommend`, `get_settings`, `save_settings`)
 > - **Neden:** kendi şampiyonların öncelikli olsun ama kötü eşleşmede daha iyisi öne geçsin
 > - **Dosyalar:** src-tauri/src/scoring.rs, src-tauri/src/settings.rs, src-tauri/src/lib.rs, docs/scoring.md
-> - **Commit:** —
+> - **Commit:** 9803cd1
 
 ## LC-002 — Veri katmanı: Data Dragon, u.gg, önbellek
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001
