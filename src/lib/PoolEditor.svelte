@@ -13,8 +13,7 @@
     saved,
     welcome = false,
     active = true,
-    onsave,
-    dirty = $bindable(false)
+    onsave
   }: {
     champions: Champion[];
     champByKey: Map<number, Champion>;
@@ -23,7 +22,6 @@
     /** false while the view is hidden (keeps the draft, disables shortcuts) */
     active?: boolean;
     onsave: (s: Settings) => Promise<void>;
-    dirty?: boolean;
   } = $props();
 
   type Pools = Record<Lane, number[]>;
@@ -33,14 +31,60 @@
   let draft = $state<Pools>(untrack(() => toPools(saved)));
   let lane = $state<Lane>('top');
   let query = $state('');
+
+  // --- autosave: every change is written SAVE_DELAY ms after the last one
+  // (one-shot debounce, no polling); flushed at once when the view is hidden,
+  // the page goes away or the component is destroyed.
+  const SAVE_DELAY = 500;
   let status = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let saveError = $state('');
-  let savedTimer: ReturnType<typeof setTimeout> | undefined;
+  let pending = false; // a change not yet handed to onsave
+  let inFlight = false;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const same = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
-  const isDirty = $derived(LANES.some((l) => !same(draft[l], saved.pools[l] ?? [])));
+  function changed() {
+    pending = true;
+    status = 'saving';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, SAVE_DELAY);
+  }
+
+  async function flush() {
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    // a save already running writes the newer draft when it finishes
+    if (!pending || inFlight) return;
+    pending = false;
+    inFlight = true;
+    status = 'saving';
+    const settings: Settings = { ...saved, pools: toPools({ pools: draft }) };
+    try {
+      await onsave(settings);
+      // "Kaydedildi" fades out with a CSS animation, then goes back to idle
+      if (!pending) {
+        status = 'saved';
+        saveError = '';
+      }
+    } catch (e) {
+      pending = true;
+      status = 'error';
+      saveError = errorText(e);
+    } finally {
+      inFlight = false;
+    }
+    // changed during the save: write the newer draft now (unless its own
+    // debounce is still waiting, or the save failed and waits for "Tekrar dene")
+    if (pending && saveTimer === undefined && status !== 'error') flush();
+  }
+
+  function retry() {
+    pending = true;
+    flush();
+  }
+
+  // leaving the view: write at once so Counter sees the new pool
   $effect(() => {
-    dirty = isDirty;
+    if (!active) untrack(flush);
   });
 
   const pool = $derived(draft[lane]);
@@ -50,7 +94,7 @@
     const i = draft[lane].indexOf(c.key);
     if (i >= 0) draft[lane].splice(i, 1);
     else draft[lane].push(c.key);
-    if (status === 'saved' || status === 'error') status = 'idle';
+    changed();
   }
 
   function move(from: number, to: number) {
@@ -58,7 +102,7 @@
     if (to < 0 || to >= arr.length || from === to) return;
     const [k] = arr.splice(from, 1);
     arr.splice(to, 0, k);
-    if (status === 'saved') status = 'idle';
+    changed();
   }
 
   let listEl: HTMLOListElement | undefined = $state();
@@ -77,7 +121,7 @@
 
   async function remove(index: number) {
     draft[lane].splice(index, 1);
-    if (status === 'saved') status = 'idle';
+    changed();
     // keep keyboard focus in the list: the × of the chip now at this place
     await tick();
     const left = draft[lane];
@@ -121,40 +165,24 @@
   const showDrop = (at: number) =>
     dragFrom !== null && dropAt === at && at !== dragFrom && at !== dragFrom + 1;
 
-  async function save() {
-    if (!isDirty || status === 'saving') return;
-    status = 'saving';
-    saveError = '';
-    const settings: Settings = { pools: toPools({ pools: draft }) };
-    try {
-      await onsave(settings);
-      status = 'saved';
-      clearTimeout(savedTimer);
-      savedTimer = setTimeout(() => {
-        if (status === 'saved') status = 'idle';
-      }, 2200);
-    } catch (e) {
-      status = 'error';
-      saveError = errorText(e);
-    }
-  }
-
-  function revert() {
-    draft = toPools(saved);
-    status = 'idle';
-  }
-
   function onkeydown(e: KeyboardEvent) {
+    // Ctrl+S: save now instead of waiting for the debounce
     if (active && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      save();
+      if (status === 'error') retry();
+      else flush();
     }
   }
 
-  onDestroy(() => clearTimeout(savedTimer));
+  function onvisibilitychange() {
+    if (document.visibilityState === 'hidden') flush();
+  }
+
+  onDestroy(flush);
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onpagehide={flush} />
+<svelte:document {onvisibilitychange} />
 
 <section class="editor" aria-labelledby="pool-title">
   <h1 id="pool-title" class="sr-only">Havuzum</h1>
@@ -276,39 +304,39 @@
   </div>
 
   <div class="savebar">
-    <div class="state" aria-live="polite">
+    <div class="state" role="status" aria-live="polite">
       {#if status === 'error'}
-        <span class="dot err" aria-hidden="true"></span>
-        <span class="err-text">Kaydedilemedi: {saveError}</span>
-      {:else if isDirty}
-        <span class="dot pending" aria-hidden="true"></span>
-        <span>Kaydedilmemiş değişiklikler</span>
+        <span class="msg err-text">
+          <span class="dot err" aria-hidden="true"></span>
+          <span class="clip">Kaydedilemedi: {saveError}</span>
+        </span>
+      {:else if status === 'saving'}
+        <span class="msg">
+          <span class="dot busy" aria-hidden="true"></span>
+          <span>Kaydediliyor…</span>
+        </span>
+      {:else if status === 'saved'}
+        <span
+          class="msg ok-msg"
+          onanimationend={() => {
+            if (status === 'saved') status = 'idle';
+          }}
+        >
+          <span class="dot ok" aria-hidden="true"></span>
+          <span>Kaydedildi ✓</span>
+        </span>
       {:else}
-        <span class="dot ok" aria-hidden="true"></span>
-        <span class="muted">Tüm değişiklikler kayıtlı</span>
+        <span class="msg muted idle-msg">
+          <span class="dot idle" aria-hidden="true"></span>
+          <span>Değişiklikler otomatik kaydedilir</span>
+        </span>
       {/if}
     </div>
-    <div class="actions">
-      {#if isDirty && status !== 'saving'}
-        <button type="button" class="btn btn-sm ghost" onclick={revert}>Vazgeç</button>
-      {/if}
-      <button
-        type="button"
-        class="btn btn-primary save"
-        class:done={status === 'saved' && !isDirty}
-        disabled={!isDirty || status === 'saving'}
-        onclick={save}
-        use:tooltip={isDirty ? 'Ctrl+S' : null}
-      >
-        {#if status === 'saving'}
-          Kaydediliyor…
-        {:else if status === 'saved' && !isDirty}
-          Kaydedildi ✓
-        {:else}
-          Kaydet
-        {/if}
+    {#if status === 'error'}
+      <button type="button" class="btn btn-sm" onclick={retry} use:tooltip={'Ctrl+S'}>
+        Tekrar dene
       </button>
-    </div>
+    {/if}
   </div>
 </section>
 
@@ -546,21 +574,48 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 10px 14px;
+    min-height: 40px;
+    padding: 5px 14px;
     border: 1px solid var(--border);
     border-top-color: var(--gold-dark);
     border-radius: var(--radius);
     background: rgba(1, 10, 19, 0.85);
   }
+  /* the messages share one grid cell, so the fading "Kaydedildi" never pushes the next one */
   .state {
+    display: grid;
+    min-width: 0;
+    font-size: 13px;
+  }
+  .msg {
+    grid-area: 1 / 1;
     display: flex;
     align-items: center;
     gap: 10px;
     min-width: 0;
-    font-size: 13px;
+  }
+  /* shown for 2 s, then fades; animationend returns the bar to idle */
+  .ok-msg {
+    color: var(--good);
+    animation: saved-out 450ms var(--ease) 2s forwards;
+  }
+  .idle-msg {
+    animation: msg-in 250ms var(--ease);
+  }
+  @keyframes saved-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes msg-in {
+    from {
+      opacity: 0;
+    }
   }
   .err-text {
     color: var(--hard);
+  }
+  .clip {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -571,38 +626,29 @@
     flex: none;
     border-radius: 50%;
   }
-  .dot.pending {
+  .dot.busy {
     background: var(--gold);
     box-shadow: 0 0 8px rgba(200, 170, 110, 0.6);
+    animation: pulse 0.8s var(--ease) infinite alternate;
   }
   .dot.ok {
     background: var(--good);
-    opacity: 0.7;
+    box-shadow: 0 0 8px rgba(10, 207, 131, 0.5);
+  }
+  .dot.idle {
+    background: var(--good);
+    opacity: 0.45;
   }
   .dot.err {
     background: var(--hard);
   }
-  .actions {
-    display: flex;
-    gap: 8px;
-    flex: none;
-  }
-  .ghost {
-    border-color: transparent;
-    background: transparent;
-    color: var(--muted);
-  }
-  .ghost:hover:not(:disabled) {
-    border-color: var(--border);
-    box-shadow: none;
-  }
-  .save {
-    min-width: 136px;
-  }
-  .save.done:disabled {
-    border-color: rgba(10, 207, 131, 0.45);
-    color: var(--good);
-    background: rgba(10, 207, 131, 0.08);
+  @keyframes pulse {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   /* short windows (down to the 620px minimum): give the champion list room */
@@ -639,7 +685,8 @@
       padding: 10px 12px;
     }
     .savebar {
-      padding: 6px 12px;
+      min-height: 36px;
+      padding: 3px 12px;
     }
   }
 </style>

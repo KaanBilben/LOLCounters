@@ -19,17 +19,22 @@ pub fn read<T: DeserializeOwned>(path: &Path) -> Option<T> {
     serde_json::from_slice(&bytes).ok()
 }
 
-/// Üst klasörleri oluşturur; önce geçici dosyaya yazıp sonra yerine taşır
-/// (yarım kalan yazma bozuk önbellek bırakmasın diye).
+/// Değeri JSON olarak atomik yazar (bkz. [`write_atomic`]).
 pub fn write<T: Serialize>(path: &Path, v: &T) -> std::io::Result<()> {
+    write_atomic(path, &serde_json::to_vec(v)?)
+}
+
+/// Üst klasörleri oluşturur; önce geçici dosyaya yazıp sonra yerine taşır
+/// (yarım kalan yazma bozuk dosya bırakmasın diye). Önbellek ve ayar dosyası
+/// bunu kullanır.
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let json = serde_json::to_vec(v)?;
     let n = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(format!(".{}.{n}.tmp", std::process::id()));
-    std::fs::write(&tmp, json)?;
+    std::fs::write(&tmp, bytes)?;
     std::fs::rename(&tmp, path).inspect_err(|_| {
         let _ = std::fs::remove_file(&tmp);
     })

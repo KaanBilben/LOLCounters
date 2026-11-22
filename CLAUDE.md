@@ -34,7 +34,8 @@ projeye özel kurallar var.
   `cargo clippy` (son ikisi `src-tauri/` içinde) temiz olmalı.
 - **Arayüzü tarayıcıda kontrol:** `npm run dev` (port 1420). Tauri dışında
   `src/lib/mock.ts` sahte veriyi kullanır; hata durumları için localStorage'a
-  `lolcounters.mockOffline = '1'` ya da `lolcounters.mockPartial = '1'` yaz.
+  `lolcounters.mockOffline = '1'` ya da `lolcounters.mockPartial = '1'` yaz
+  (otomatik kayıt hatası için `lolcounters.mockSaveFail = '1'`).
 - **Canlı test (kullanıcı):** `npm run tauri dev`; dağıtım için
   `npm run tauri build`.
 

@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## LC-005 — Otomatik kayıt
+Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-003, LC-004
+
+> ### 2026-11-22 · Claude — Havuz her değişiklikte kendiliğinden kaydediliyor
+> - **Ne:** Havuzum'da ekleme, çıkarma ve sıralama (sürükleme ya da oklar) son değişiklikten ~500 ms sonra kendiliğinden kaydediliyor; görünümden çıkınca, pencere gizlenince/kapanınca hemen yazılıyor. "Kaydet" / "Vazgeç" düğmeleri ve sekmedeki kaydedilmemiş noktası kalktı; kayıt çubuğunda "Kaydediliyor…" / "Kaydedildi ✓" (solarak kaybolur) / "Kaydedilemedi: …" + "Tekrar dene". Ctrl+S hemen kaydeder. Hoş geldin notu, havuzla Havuzum'dan çıkılınca kapanıyor. `settings.json` geçici dosya + taşıma ile atomik yazılıyor (`cache::write_atomic`), yarıda kalan yazma dosyayı bozmuyor
+> - **Neden:** kullanıcı tercihleri hep kayıtlı olsun; kapatınca değişiklik kaybolmasın
+> - **Etkilenen:** LC-004 (PoolEditor, +page.svelte) — kaydet düğmesi ve "dirty" kavramı kalktı; LC-003 (settings.rs) — kayıt atomik
+> - **Dosyalar:** src/lib/PoolEditor.svelte, src/routes/+page.svelte, src/lib/mock.ts, src-tauri/src/settings.rs, src-tauri/src/cache.rs, src-tauri/tests/lc005_autosave.rs, CLAUDE.md
+> - **Commit:** —
+
 ## LC-004 — Arayüz: Havuzum ve Counter ekranları
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-003
 
@@ -7,17 +17,17 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-003
 > - **Ne:** Havuzum (lane sekmeleri, aramalı şampiyon ızgarası, sürükleyerek sıralama, kaydet) ve Counter (lane + rakip seçimi, öneri kartları, rün/büyü/eşya) ekranları; LoL temalı koyu tasarım
 > - **Neden:** counter aramadan, tek tıkla öneri
 > - **Dosyalar:** src/routes/+page.svelte, src/lib/
-> - **Commit:** —
+> - **Commit:** 7c86ab9
 >
 > ### 2026-11-22 · Claude — Fix: inceleme bulguları
 > - **Ne:** küçük pencerede (900×620) şampiyon ızgarası sığıyor; boş aramada Enter seçim yapmıyor; klavye odağı (kaldırma, ikonlar, lane seçici); verisi alınamayan şampiyon "Alınamadı" olarak gösteriliyor ve sonuç önbelleğe alınmıyor; sürükle-bırak için `dragDropEnabled: false`
 > - **Dosyalar:** src/lib/*.svelte, src-tauri/tauri.conf.json
-> - **Commit:** —
+> - **Commit:** 7c86ab9
 >
 > ### 2026-11-22 · Claude — Fix: havuz satırı yarım çip göstermiyor
 > - **Ne:** havuz çip listesinin yüksekliği tam 2 satıra ayarlandı (92 px); 900×620 pencerede 5. şampiyon yarım kesik görünüyordu
 > - **Dosyalar:** src/lib/PoolEditor.svelte
-> - **Commit:** —
+> - **Commit:** ee77315
 
 ## LC-003 — Puanlama ve havuz kaydı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002

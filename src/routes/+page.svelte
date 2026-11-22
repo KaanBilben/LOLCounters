@@ -13,7 +13,6 @@
   let loadError = $state<string | null>(null);
   let view = $state<View>('counter');
   let welcome = $state(false);
-  let poolDirty = $state(false);
 
   const champByKey = $derived(new Map((data?.champions ?? []).map((c) => [c.key, c])));
 
@@ -32,10 +31,16 @@
     }
   }
 
+  // PoolEditor saves automatically after every change; the welcome note stays
+  // until the user leaves Havuzum with a pool (first-run flow).
   async function save(s: Settings) {
     await saveSettings(s);
     settings = s;
-    welcome = false;
+  }
+
+  function go(v: View) {
+    if (v !== 'pool' && LANES.some((l) => (settings.pools[l]?.length ?? 0) > 0)) welcome = false;
+    view = v;
   }
 
   onMount(init);
@@ -67,12 +72,9 @@
             class:on={view === t.id}
             aria-selected={view === t.id}
             aria-controls="view-{t.id}"
-            onclick={() => (view = t.id)}
+            onclick={() => go(t.id)}
           >
             {t.label}
-            {#if t.id === 'pool' && poolDirty}
-              <span class="unsaved" aria-label="kaydedilmemiş değişiklik var"></span>
-            {/if}
           </button>
         {/each}
       </div>
@@ -88,7 +90,7 @@
           {champByKey}
           {settings}
           active={view === 'counter'}
-          ongopool={() => (view = 'pool')}
+          ongopool={() => go('pool')}
         />
       </div>
       <div class="view" id="view-pool" role="tabpanel" aria-labelledby="tab-pool" hidden={view !== 'pool'}>
@@ -99,7 +101,6 @@
           {welcome}
           active={view === 'pool'}
           onsave={save}
-          bind:dirty={poolDirty}
         />
       </div>
     {:else if loadError !== null}
@@ -217,14 +218,6 @@
   .tab:focus-visible {
     outline-offset: -6px;
   }
-  .unsaved {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--gold);
-    box-shadow: 0 0 6px rgba(200, 170, 110, 0.7);
-  }
-
   .patch {
     margin-left: auto;
     padding: 3px 10px;

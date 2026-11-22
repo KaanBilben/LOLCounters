@@ -34,11 +34,9 @@ pub fn load(path: &Path) -> Settings {
         .unwrap_or_default()
 }
 
-/// Üst klasörleri oluşturur ve ayarları yazar.
+/// Ayarları atomik yazar (geçici dosya + taşıma): yazma yarıda kesilirse eski
+/// dosya bozulmadan kalır. Arayüz her değişiklikte otomatik kaydettiği için
+/// sık çağrılır.
 pub fn save(path: &Path, s: &Settings) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let json = serde_json::to_vec_pretty(s)?;
-    std::fs::write(path, json)
+    crate::cache::write_atomic(path, &serde_json::to_vec_pretty(s)?)
 }

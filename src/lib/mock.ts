@@ -150,6 +150,14 @@ export async function getSettings(): Promise<Settings> {
 
 export async function saveSettings(settings: Settings): Promise<void> {
   await delay(250);
+  // Preview the autosave error with: localStorage.setItem('lolcounters.mockSaveFail', '1')
+  let fail = false;
+  try {
+    fail = localStorage.getItem('lolcounters.mockSaveFail') === '1';
+  } catch {
+    /* preview only */
+  }
+  if (fail) throw 'Erişim engellendi (sahte hata)';
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch {
