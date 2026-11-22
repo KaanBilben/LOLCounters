@@ -46,7 +46,7 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
 | Belge | Konusu |
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | Bu projede çalışırken uyulacak kurallar |
-| [docs/data-sources.md](docs/data-sources.md) | Veri nereden ve hangi biçimde geliyor (Data Dragon, u.gg) |
+| [docs/data-sources.md](docs/data-sources.md) | Veri nereden ve hangi biçimde geliyor (Data Dragon, u.gg, LoL istemcisi) |
 | [docs/scoring.md](docs/scoring.md) | Önerilerin nasıl sıralandığı |
 | [CHANGELOG.md](CHANGELOG.md) | Yapılan işler (thread biçiminde) |
 
@@ -57,6 +57,7 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
 | `src-tauri/src/lib.rs` | Tauri komutları ve uygulama durumu |
 | `src-tauri/src/ddragon.rs` | Riot Data Dragon: şampiyon, eşya, rün, büyü listeleri |
 | `src-tauri/src/ugg.rs` | u.gg: eşleşme, build ve lane (rol) verisi (resmi olmayan kaynak) |
+| `src-tauri/src/lcu.rs` | LoL istemcisi (LCU): şampiyon seçimini okur; LCU kodunun tek yeri |
 | `src-tauri/src/cache.rs` | Disk önbelleği (yama başına) |
 | `src-tauri/src/scoring.rs` | Öneri puanlaması |
 | `src-tauri/src/settings.rs` | Şampiyon havuzunun ve autostart tercihinin kaydı |
@@ -70,8 +71,7 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
 - Şampiyon ızgaraları (Havuzum ve rakip seçimi) varsayılan olarak yalnızca
   seçili lane'in şampiyonlarını gösterir ("Hepsi" ile hepsi); veri u.gg'den,
   kural [docs/data-sources.md](docs/data-sources.md#lane-filtresi-ugg-champion_ranking).
-
-- Rakip şampiyon şimdilik elle seçiliyor. Sonraki sürüm: LoL istemcisinden
-  otomatik algılama.
+- Şampiyon seçimi LoL istemcisinden okunur (rol, kilit, görünen rakipler,
+  rakip tahmini). İstemci açıkken henüz canlı test edilmedi.
 - Rün ve eşya önerileri şampiyonun o lane'deki genel build'idir; rakibe özel
   build henüz yok.

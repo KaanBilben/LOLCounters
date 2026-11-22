@@ -6,6 +6,7 @@
 pub mod cache;
 pub mod ddragon;
 pub mod launch;
+pub mod lcu;
 pub mod scoring;
 pub mod settings;
 pub mod ugg;
@@ -571,6 +572,41 @@ async fn get_roles(app: AppHandle, state: State<'_, AppState>) -> Result<HashMap
     Ok(lanes_with_fallback(ugg::lanes_over(&shares, ugg::ROLE_MIN_SHARE), &keys))
 }
 
+// --- LC-008: LoL istemcisi (LCU) ---------------------------------------------
+
+/// Rakibin lane tahmini için şampiyon başına rol payları (key → lane → 0..1).
+/// LC-006'nın lane verisi: bellekte yoksa diskten, o da yoksa yama başına bir kez indirilir.
+/// Veri alınamazsa hata döner; o zaman bu seçimde tahmin olmaz, kullanıcı rakibi elle seçer.
+async fn lcu_role_shares(app: &AppHandle) -> Result<HashMap<i64, HashMap<Lane, f64>>, String> {
+    role_shares_cached(app).await
+}
+
+/// Şampiyon seçimi başladı (LC-009 küçük pencereyi burada açar).
+/// Kesin olmayan statik veri de burada yeniden denenir (LC-007 `recheck_static`): uygulama
+/// tepside günlerce yaşar ve ana pencere hiç açılmadan yalnızca seçimde kullanılabilir.
+fn on_champ_select_start(app: &AppHandle) {
+    recheck_static(app);
+}
+
+/// Şampiyon seçimi bitti: lobiye dönüş, kuyruk, oyun başlangıcı ya da bağlantı kopması.
+fn on_champ_select_end(_app: &AppHandle) {}
+
+#[tauri::command]
+fn get_champ_select_state(state: State<'_, lcu::LcuState>) -> lcu::ChampSelectPayload {
+    state.payload()
+}
+
+#[tauri::command]
+async fn set_opponent(app: AppHandle, champion_key: Option<i64>) -> lcu::ChampSelectPayload {
+    lcu::set_opponent(&app, champion_key).await
+}
+
+/// Atanmış rol yokken kullanıcının seçtiği lane (rakip tahmini için); `null`: geri al.
+#[tauri::command]
+async fn set_my_lane(app: AppHandle, lane: Option<Lane>) -> lcu::ChampSelectPayload {
+    lcu::set_my_lane(&app, lane).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -582,7 +618,13 @@ pub fn run() {
         ))
         .manage(AppState::new())
         .manage(RolesState::default())
-        .setup(launch::setup)
+        .manage(lcu::LcuState::default())
+        // Tek setup: tepsi + pencere (LC-007), sonra LCU izleyicisi (LC-008).
+        .setup(|app| {
+            launch::setup(app)?;
+            lcu::start(app.handle().clone());
+            Ok(())
+        })
         .on_window_event(launch::on_window_event)
         .invoke_handler(tauri::generate_handler![
             load_static,
@@ -591,7 +633,10 @@ pub fn run() {
             recommend,
             get_roles,
             launch::get_autostart,
-            launch::set_autostart
+            launch::set_autostart,
+            get_champ_select_state,
+            set_opponent,
+            set_my_lane
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

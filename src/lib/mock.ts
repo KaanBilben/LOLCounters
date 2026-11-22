@@ -323,3 +323,36 @@ export async function setAutostart(enabled: boolean): Promise<AutostartState> {
   }
   return getAutostart();
 }
+
+// --- LC-008: League client champion select ------------------------------------
+// The mock has no League client: the state is always "not connected".
+
+import type { ChampSelectState } from './types';
+
+const NO_CLIENT: ChampSelectState = {
+  connected: false,
+  active: false,
+  myLane: null,
+  myChampion: null,
+  myIntent: null,
+  locked: false,
+  enemies: [],
+  opponent: null,
+  opponentChosen: false
+};
+
+export async function getChampSelectState(): Promise<ChampSelectState> {
+  return { ...NO_CLIENT };
+}
+
+export async function setOpponent(_championKey: number | null): Promise<ChampSelectState> {
+  return { ...NO_CLIENT };
+}
+
+export async function setMyLane(_lane: Lane | null): Promise<ChampSelectState> {
+  return { ...NO_CLIENT };
+}
+
+export function onChampSelect(_cb: (s: ChampSelectState) => void): () => void {
+  return () => {};
+}

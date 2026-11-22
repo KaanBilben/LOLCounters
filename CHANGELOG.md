@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
+Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
+
+> ### 2026-11-22 · Claude — İstemciden şampiyon seçimini okuma
+> - **Ne:** yeni `lcu.rs`: kurulum klasörü bulma (ürün ayarı → kayıt defteri → RiotClientInstalls.json → varsayılan), lockfile okuma, klasörü Windows değişiklik bildirimiyle izleme (yoklama yok), `wss://127.0.0.1` bağlantısı (önce yalnızca Riot kökü, reddedilirse yalnızca 127.0.0.1 için yedek doğrulayıcı), oturum ve aşama aboneliği + bağlanınca tek REST eşitlemesi; oturumdan rolüm, kilit, niyetim ve görünen rakipler; rakibimi rol paylarıyla en olası bire bir eşleştirmeyle tahmin; `champ-select` olayı (yalnızca değişince), `get_champ_select_state` ve `set_opponent` komutları; seçim başlangıç/bitiş kancaları (pencereyi LC-009 bağlar)
+> - **Neden:** rakibi elle seçmek yerine şampiyon seçiminde otomatik öneri
+> - **Etkilenen:** LC-006 — rol payları `lib.rs` `lcu_role_shares()` üzerinden alınır; şimdilik boş, entegrasyonda `role_shares_cached`'e bağlanacak (o zamana kadar rakip tahmini yok, elle seçilebilir)
+> - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/lib.rs, src-tauri/Cargo.toml, src-tauri/certs/riotgames.pem, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, README.md, CLAUDE.md
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Entegrasyon: rakip tahmini lane verisine bağlandı
+> - **Ne:** `lcu_role_shares()` artık LC-006'nın `role_shares_cached` verisini kullanır (bellek → disk `ugg/{yama}/roles.json` → yoksa bir kez indirme); veri alınamazsa boş döner ve rakip elle seçilir
+> - **Neden:** stub boş harita döndürdüğü için rakip tahmini hiç çalışmıyordu
+> - **Etkilenen:** LC-006 (`role_shares_cached` artık LCU de kullanıyor)
+> - **Dosyalar:** src-tauri/src/lib.rs, src-tauri/tests/lc008.rs, docs/data-sources.md
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: inceleme bulguları
+> - **Ne:** (1) olay döngüsü artık ağ beklemiyor: `update` değişikliği uygular, başlangıç/bitiş kancalarını çağırır ve hemen döner; rakip tahmini ayrı bir görevde (`guess_task`) hesaplanır ve yalnızca seçim ve girdi hâlâ aynıysa yazılır. Tahmin yalnızca görünen rakipler ya da lane değişince yeniden hesaplanır (`guess_input`; niyet/gezinme yeni istek başlatmaz); lane verisi alınamazsa o seçimde yeniden denenmez. Böylece yavaş u.gg oyun başlangıcı çerçevesini ve küçük pencerenin kapanmasını geciktirmez. (2) Yeni `set_my_lane` komutu: atanmış rol yokken (pozisyonsuz seçim) elle seçilen lane tahminde kullanılır; seçim bitince sıfırlanır. (3) LCU REST istemcisi `no_proxy()` ile kuruluyor: `HTTPS_PROXY`/Windows proxy ayarı parolayı bir proxy'ye göndermez. Ayrıca seçim başlangıcında LC-007'nin `recheck_static`'i çağrılır. Yeni testler: `tests/lc008.rs` `guess_input_ignores_my_hover`, `guess_input_uses_manual_lane_without_assigned_role`
+> - **Etkilenen:** LC-007 (`recheck_static` artık seçim başlangıcında da çalışır), LC-009 (küçük penceredeki lane seçici `set_my_lane`'i çağıracak)
+> - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/lib.rs, src-tauri/tests/lc008.rs, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md
+> - **Commit:** —
+
 ## LC-007 — Kolay açılış: simge, kurulum, tepsi, tek kopya, autostart
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003, LC-004
 
@@ -8,20 +31,20 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003,
 > - **Neden:** uygulama tek tıkla kurulsun, oyun açılmadan hazır beklesin ve kapatınca kaybolmasın
 > - **Etkilenen:** LC-003 — eski ayar dosyası bozulmadan okunur; `save_settings` arayüzün göndermediği autostart tercihini diskten korur. LC-004 — üst çubuğa `SettingsMenu` eklendi
 > - **Dosyalar:** src-tauri/src/launch.rs, src-tauri/src/lib.rs, src-tauri/src/settings.rs, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/icons/, src/lib/SettingsMenu.svelte, src/lib/api.ts, src/lib/types.ts, src/lib/mock.ts, src/routes/+page.svelte, static/favicon.png, README.md, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** f5ff872
 >
 > ### 2026-11-22 · Claude — Fix: entegrasyon, eski autostart değeri tercihi ezmesin
 > - **Ne:** `keep_backend_fields` artık autostart'ı her zaman diskteki kayıttan alır (önce arayüzden gelen değer öncelikliydi)
 > - **Neden:** LC-005 otomatik kaydı `{ ...saved, pools }` gönderiyor; içindeki açılıştaki autostart değeri, sonradan Ayarlar panelinden kapatılan tercihi geri açıyordu
 > - **Etkilenen:** LC-005 (PoolEditor otomatik kaydı)
 > - **Dosyalar:** src-tauri/src/settings.rs, src-tauri/tests/lc007.rs
-> - **Commit:** —
+> - **Commit:** f5ff872
 >
 > ### 2026-11-22 · Claude — Fix: inceleme bulguları
 > - **Ne:** süreç tepside günlerce yaşadığı için kesin olmayan statik veri artık oturum boyunca kilitlenmiyor: `static_settled` (en yeni Data Dragon sürümü + u.gg'nin o sürümün kendi yaması) yanlışsa veri geçici sayılır ve ana pencere gösterilince (`show_main` → `recheck_static`) arka planda yeniden yüklenir; sürüm ya da yama değişirse `static-updated` olayı gider ve ana sayfa `load_static`'i yeniden ister. Aynı anda boş gelmiş şampiyon/lane verisi bellekten atılır (sonraki istekte yeniden sorulur). Zamanlayıcı yok; veri kesinse ağ isteği yok. Yeni test: `tests/lc007.rs` `only_latest_version_with_its_own_patch_is_settled`
 > - **Etkilenen:** LC-002 (`static_payload` → `resolve_static` + `store_static`), LC-006 (boş lane verisi bellekten atılabiliyor)
 > - **Dosyalar:** src-tauri/src/lib.rs, src-tauri/src/launch.rs, src-tauri/tests/lc007.rs, src/lib/api.ts, src/lib/mock.ts, src/routes/+page.svelte, docs/data-sources.md
-> - **Commit:** —
+> - **Commit:** f5ff872
 
 ## LC-006 — Lane filtresi
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-004

@@ -22,6 +22,15 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 futures = "0.3"
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-autostart = "2.7"
+# LC-008: LoL istemcisi (LCU) bağlantısı; yalnızca src/lcu.rs kullanır.
+tokio = { version = "1", features = ["sync", "time"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "__rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+base64 = "0.22"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Threading"] }
+winreg = "0.56"
 
 # https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

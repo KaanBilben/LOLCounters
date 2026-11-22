@@ -65,3 +65,32 @@ export async function setAutostart(enabled: boolean): Promise<AutostartState> {
   if (useMock) return (await mock()).setAutostart(enabled);
   return invoke<AutostartState>('set_autostart', { enabled });
 }
+
+// --- LC-008: League client champion select ------------------------------------
+
+import type { ChampSelectState } from './types';
+
+export async function getChampSelectState(): Promise<ChampSelectState> {
+  if (useMock) return (await mock()).getChampSelectState();
+  return invoke<ChampSelectState>('get_champ_select_state');
+}
+
+/** Sets my lane opponent by hand (null: back to the guess). Cleared when champ select ends. */
+export async function setOpponent(championKey: number | null): Promise<ChampSelectState> {
+  if (useMock) return (await mock()).setOpponent(championKey);
+  return invoke<ChampSelectState>('set_opponent', { championKey });
+}
+
+/** Sets my lane by hand when no role is assigned (used for the opponent guess); null: undo.
+ * Cleared when champ select ends. */
+export async function setMyLane(lane: Lane | null): Promise<ChampSelectState> {
+  if (useMock) return (await mock()).setMyLane(lane);
+  return invoke<ChampSelectState>('set_my_lane', { lane });
+}
+
+/** Listens to the `champ-select` event (sent only when the state changes). Returns unlisten. */
+export async function onChampSelect(cb: (s: ChampSelectState) => void): Promise<() => void> {
+  if (useMock) return (await mock()).onChampSelect(cb);
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<ChampSelectState>('champ-select', (e) => cb(e.payload));
+}

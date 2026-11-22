@@ -12,6 +12,8 @@ projeye özel kurallar var.
   kez indirilir; yama içinde yenilenmez).
 - **Resmi olmayan veri tek yerde:** u.gg ile ilgili her şey (adresler, JSON
   biçimi) yalnızca `src-tauri/src/ugg.rs` içindedir.
+- **LoL istemcisi tek yerde:** LCU ile ilgili her kod (kurulum yolu, lockfile,
+  adresler, oturum biçimi) yalnızca `src-tauri/src/lcu.rs` içindedir.
 - **Riot kuralı:** Uygulama başka oyuncuların adını ya da istatistiğini hiçbir
   yerde göstermez; yalnızca şampiyon verisi kullanılır.
 - **Arayüz dili Türkçe;** şampiyon, eşya, rün ve büyü adları Data Dragon
@@ -23,6 +25,7 @@ projeye özel kurallar var.
 |---|---|
 | u.gg adresi ya da JSON biçimi (`ugg.rs`) | [docs/data-sources.md](docs/data-sources.md) |
 | Lane filtresi eşiği `ROLE_MIN_SHARE` (`ugg.rs` başında) | [docs/data-sources.md](docs/data-sources.md#lane-filtresi-ugg-champion_ranking) |
+| LCU adresi, aboneliği ya da okunan alan (`lcu.rs`) | [docs/data-sources.md](docs/data-sources.md) |
 | Puanlama sabitleri (yalnızca `src-tauri/src/scoring.rs` başında) | [docs/scoring.md](docs/scoring.md) ve sahte veri `src/lib/mock.ts` |
 | Tauri komutu ya da dönen veri (`lib.rs`) | `src/lib/types.ts`, `src/lib/api.ts`, `src/lib/mock.ts` |
 | Çalıştırma / kod yapısı | [README.md](README.md) |

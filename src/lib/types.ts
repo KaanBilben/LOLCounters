@@ -96,3 +96,24 @@ export interface AutostartState {
   /** false: geliştirme derlemesi, anahtar kapalı gösterilir. */
   available: boolean;
 }
+
+/** LC-008: champion select read from the League client (src-tauri/src/lcu.rs ChampSelectPayload). */
+export interface ChampSelectState {
+  /** Connected to the League client. */
+  connected: boolean;
+  /** Champion select is running. */
+  active: boolean;
+  /** Assigned lane (draft/ranked); null in blind pick. */
+  myLane: Lane | null;
+  /** Locked-in champion. */
+  myChampion: number | null;
+  /** Hovered / intended champion before lock-in. */
+  myIntent: number | null;
+  locked: boolean;
+  /** Revealed enemy champions, in order. */
+  enemies: number[];
+  /** My lane opponent: the user's choice, else the guess; null if unknown. */
+  opponent: number | null;
+  /** True when `opponent` was chosen by the user (not guessed). */
+  opponentChosen: boolean;
+}

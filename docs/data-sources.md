@@ -18,8 +18,9 @@ Rün parçacıkları (shard, ör. `5008`) Data Dragon'da yok; adları
 
 En yeni sürüme ulaşılamazsa (ör. Windows açılışında ağ henüz yok) ya da u.gg o
 sürümün yamasını henüz listelemiyorsa diskteki eski kayıt yalnızca geçici
-kullanılır: ana pencere gösterilince yeniden denenir (zamanlayıcı yok;
-`lib.rs` `recheck_static`), sürüm değişirse arayüz yeni veriyi yükler.
+kullanılır: ana pencere gösterilince ve şampiyon seçimi başlayınca yeniden
+denenir (zamanlayıcı yok; `lib.rs` `recheck_static`), sürüm değişirse arayüz
+yeni veriyi yükler.
 
 ## u.gg (resmi olmayan)
 
@@ -97,3 +98,62 @@ lane'de listelenir. 16.23 Emerald+ ile: Darius Üst + Orman, Ashe Nişancı + De
 Brand Orta + Nişancı + Destek (Üst %7 → yok). Dosyada olmayan şampiyon (yeni
 çıkmış) her lane'de görünür; veri alınamazsa arayüz sessizce bütün şampiyonları
 gösterir. Yayınlanmamış yama 403 döner (= veri yok).
+
+## League client (LCU, yerel)
+
+LoL istemcisinin kendi bilgisayardaki API'si; şampiyon seçimini okumak için.
+Riot bunu üçüncü taraf uygulamalar için resmi olarak desteklemez. Kod yalnızca
+`src-tauri/src/lcu.rs` içindedir. İstemci açık olmadan canlı doğrulanamadı
+(2026-11-22): aşağıdaki biçim belgelerden ve çalışan açık kaynak
+kütüphanelerden (irelia, league-connect) alındı.
+
+**Kurulum klasörü** (sırayla; `LeagueClient.exe` olan ilk aday):
+
+1. `C:/ProgramData/Riot Games/Metadata/league_of_legends.live/league_of_legends.live.product_settings.yaml`,
+   satır `product_install_full_path: "..."`
+2. Kayıt defteri `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Riot Game league_of_legends.live`,
+   değer `InstallLocation`
+3. `C:/ProgramData/Riot Games/RiotClientInstalls.json`, `associated_client` anahtarları
+4. `C:/Riot Games/League of Legends`
+
+**Lockfile:** `<kurulum>/lockfile`, yalnızca istemci açıkken var:
+`LeagueClient:<pid>:<port>:<parola>:https`. Klasör, Windows'un değişiklik
+bildirimiyle (`FindFirstChangeNotificationW`, süresiz bekleme) izlenir;
+yoklama yoktur. Lockfile görününce bağlantı en çok 4 kez denenir (0/1/2/4 sn).
+
+**Bağlantı:** `wss://127.0.0.1:<port>/`, başlık
+`Authorization: Basic base64("riot:<parola>")`.
+
+- Sertifika: önce yalnızca Riot kökü
+  ([riotgames.pem](https://static.developer.riotgames.com/docs/lol/riotgames.pem),
+  `src-tauri/certs/riotgames.pem`). El sıkışma reddedilirse sertifikayı yalnızca
+  hedef 127.0.0.1 olduğu için kabul eden yedek kullanılır (neden: `lcu.rs`
+  içindeki `LoopbackOnly` açıklaması).
+- Proxy kullanılmaz: REST istemcisi `no_proxy()` ile kurulur (WebSocket zaten
+  proxy kullanmaz); `HTTPS_PROXY` ya da Windows proxy ayarı parolayı başka bir
+  yere göndermez.
+- Abonelikler (WAMP, 5 = abone ol, 8 = olay):
+  `[5,"OnJsonApiEvent_lol-champ-select_v1_session"]`,
+  `[5,"OnJsonApiEvent_lol-gameflow_v1_gameflow-phase"]`.
+- Gelen olay: `[8, "<olay>", {"uri", "eventType": "Create"|"Update"|"Delete", "data"}]`.
+- Bağlanınca bir kez REST: `GET /lol-gameflow/v1/gameflow-phase`; sonuç
+  `"ChampSelect"` ise `GET /lol-champ-select/v1/session`.
+
+**Okunan alanlar** (başka hiçbir alan çözümlenmez; oyuncu adı, `summonerId`,
+`puuid` okunmaz):
+
+| Alan | Kullanım |
+|---|---|
+| `localPlayerCellId` | Benim hücrem |
+| `myTeam[].cellId`, `championId`, `championPickIntent`, `assignedPosition` | Benim rolüm (`top/jungle/middle/bottom/utility`) ve niyetim |
+| `theirTeam[].championId` | Görünen rakipler (0 olmayanlar) |
+| `actions[][].actorCellId`, `championId`, `completed`, `type` | Kilit: benim tamamlanmış `pick` eylemim |
+| aşama (`gameflow-phase`) | `ChampSelect` başlangıç; başka her aşama ya da oturum `Delete` bitiş |
+
+Rakibimin hangi lane'de olduğu istemcide yok; şampiyonların rol paylarıyla
+([lane filtresinin verisi](#lane-filtresi-ugg-champion_ranking), aynı önbellek)
+tahmin edilir (en olası bire bir eşleştirme) ve kullanıcı tıklayarak düzeltebilir.
+Atanmış rol yoksa (pozisyonsuz seçim) kullanıcının seçtiği lane kullanılır
+(`set_my_lane`). Tahmin yalnızca görünen rakipler ya da lane değişince, olay
+döngüsünü bekletmeden ayrı bir görevde hesaplanır. Lane verisi alınamazsa o
+seçimde yeniden denenmez ve tahmin yapılmaz; rakip elle seçilir.
