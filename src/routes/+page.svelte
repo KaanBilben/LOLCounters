@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { errorText, getSettings, loadStatic, saveSettings } from '$lib/api';
+  import { errorText, getSettings, loadStatic, onStaticUpdated, saveSettings } from '$lib/api';
   import CounterView from '$lib/CounterView.svelte';
   import PoolEditor from '$lib/PoolEditor.svelte';
+  import SettingsMenu from '$lib/SettingsMenu.svelte';
   import type { Settings, StaticPayload } from '$lib/types';
   import { LANES } from '$lib/util';
 
@@ -43,7 +44,23 @@
     view = v;
   }
 
-  onMount(init);
+  onMount(() => {
+    init();
+    // the backend reloaded data that was not final (old version / patch): show the new one
+    let unlisten: (() => void) | undefined;
+    let gone = false;
+    onStaticUpdated(async () => {
+      try {
+        data = await loadStatic();
+      } catch {
+        /* keep the data on screen */
+      }
+    }).then((u) => (gone ? u() : (unlisten = u)));
+    return () => {
+      gone = true;
+      unlisten?.();
+    };
+  });
 
   const tabs: { id: View; label: string }[] = [
     { id: 'counter', label: 'Counter' },
@@ -80,6 +97,7 @@
       </div>
       <span class="patch" title="Data Dragon {data.version}">Yama {data.uggPatch}</span>
     {/if}
+    <SettingsMenu />
   </header>
 
   <main class="main">

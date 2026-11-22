@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## LC-007 — Kolay açılış: simge, kurulum, tepsi, tek kopya, autostart
+Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003, LC-004
+
+> ### 2026-11-22 · Claude — Simge, NSIS kurulumu, tepsi ve Windows açılınca başlatma
+> - **Ne:** temaya uygun yeni uygulama simgesi (lacivert zemin + altın elmas; `icons/app-icon.svg`'den üretildi, favicon da); yalnızca NSIS kurulumu (kullanıcıya özel, yönetici izni yok, Türkçe); tepsi simgesi (`Ayarları aç` / `Çık`, sol tık pencereyi açar); kapatınca tepsiye gizleme; tek kopya (ikinci açılış açık pencereyi öne getirir); kurulan sürümde ilk açılışta Windows başlangıcına ekleme (`--minimized` ile tepside gizli başlar); üst çubukta dişli → `Ayarlar` paneli ve anahtar (`get_autostart` / `set_autostart`); `Settings.autostart` alanı
+> - **Neden:** uygulama tek tıkla kurulsun, oyun açılmadan hazır beklesin ve kapatınca kaybolmasın
+> - **Etkilenen:** LC-003 — eski ayar dosyası bozulmadan okunur; `save_settings` arayüzün göndermediği autostart tercihini diskten korur. LC-004 — üst çubuğa `SettingsMenu` eklendi
+> - **Dosyalar:** src-tauri/src/launch.rs, src-tauri/src/lib.rs, src-tauri/src/settings.rs, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/icons/, src/lib/SettingsMenu.svelte, src/lib/api.ts, src/lib/types.ts, src/lib/mock.ts, src/routes/+page.svelte, static/favicon.png, README.md, CLAUDE.md
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: entegrasyon, eski autostart değeri tercihi ezmesin
+> - **Ne:** `keep_backend_fields` artık autostart'ı her zaman diskteki kayıttan alır (önce arayüzden gelen değer öncelikliydi)
+> - **Neden:** LC-005 otomatik kaydı `{ ...saved, pools }` gönderiyor; içindeki açılıştaki autostart değeri, sonradan Ayarlar panelinden kapatılan tercihi geri açıyordu
+> - **Etkilenen:** LC-005 (PoolEditor otomatik kaydı)
+> - **Dosyalar:** src-tauri/src/settings.rs, src-tauri/tests/lc007.rs
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: inceleme bulguları
+> - **Ne:** süreç tepside günlerce yaşadığı için kesin olmayan statik veri artık oturum boyunca kilitlenmiyor: `static_settled` (en yeni Data Dragon sürümü + u.gg'nin o sürümün kendi yaması) yanlışsa veri geçici sayılır ve ana pencere gösterilince (`show_main` → `recheck_static`) arka planda yeniden yüklenir; sürüm ya da yama değişirse `static-updated` olayı gider ve ana sayfa `load_static`'i yeniden ister. Aynı anda boş gelmiş şampiyon/lane verisi bellekten atılır (sonraki istekte yeniden sorulur). Zamanlayıcı yok; veri kesinse ağ isteği yok. Yeni test: `tests/lc007.rs` `only_latest_version_with_its_own_patch_is_settled`
+> - **Etkilenen:** LC-002 (`static_payload` → `resolve_static` + `store_static`), LC-006 (boş lane verisi bellekten atılabiliyor)
+> - **Dosyalar:** src-tauri/src/lib.rs, src-tauri/src/launch.rs, src-tauri/tests/lc007.rs, src/lib/api.ts, src/lib/mock.ts, src/routes/+page.svelte, docs/data-sources.md
+> - **Commit:** —
+
 ## LC-006 — Lane filtresi
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-004
 
@@ -8,12 +31,12 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-004
 > - **Neden:** LoL istemcisindeki rol filtresi gibi; 170+ şampiyon içinde aramadan seçim
 > - **Etkilenen:** LC-004 (`ChampionPicker` arama satırına `toolbar` snippet'i eklendi); LC-002 (`UggPatch.rankingVersion` alanı; eski `patch.json` kayıtlarında varsayılan `1.5.0`)
 > - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src-tauri/tests/lc006_lane_filter.rs, src/lib/roles.ts, src/lib/LaneFilter.svelte, src/lib/ChampionPicker.svelte, src/lib/PoolEditor.svelte, src/lib/CounterView.svelte, src/lib/api.ts, src/lib/types.ts, src/lib/mock.ts, docs/data-sources.md, README.md, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** 72754e6
 >
 > ### 2026-11-22 · Claude — Fix: inceleme bulguları
 > - **Ne:** lane verisi bir kez alınamazsa (ör. Windows açılışında ağ henüz yokken) filtre artık oturum boyunca kaybolmuyor: `roles.ts` `watchRoles()` veri gelene kadar pencere gösterilince ya da odak alınca yeniden sorar (zamanlayıcı yok); Havuzum ve Counter bunu kullanır
 > - **Dosyalar:** src/lib/roles.ts, src/lib/PoolEditor.svelte, src/lib/CounterView.svelte
-> - **Commit:** —
+> - **Commit:** 72754e6
 
 ## LC-005 — Otomatik kayıt
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-003, LC-004

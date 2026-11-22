@@ -44,6 +44,8 @@ export interface StaticPayload {
 
 export interface Settings {
   pools: Partial<Record<Lane, number[]>>;
+  /** Windows açılınca başlatma tercihi; yalnızca Rust yönetir (`null` = hiç sorulmadı). */
+  autostart?: boolean | null;
 }
 
 export interface RunePage {
@@ -87,3 +89,10 @@ export interface Recommendation {
  * Every Data Dragon champion is listed; one without u.gg data has all five lanes.
  */
 export type Roles = Partial<Record<number, Lane[]>>;
+
+/** Windows açılınca başlatma durumu (src-tauri/src/launch.rs `AutostartState`). */
+export interface AutostartState {
+  enabled: boolean;
+  /** false: geliştirme derlemesi, anahtar kapalı gösterilir. */
+  available: boolean;
+}

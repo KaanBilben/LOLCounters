@@ -16,6 +16,11 @@
 Rün parçacıkları (shard, ör. `5008`) Data Dragon'da yok; adları
 `src-tauri/src/ddragon.rs` içindeki küçük tablodadır.
 
+En yeni sürüme ulaşılamazsa (ör. Windows açılışında ağ henüz yok) ya da u.gg o
+sürümün yamasını henüz listelemiyorsa diskteki eski kayıt yalnızca geçici
+kullanılır: ana pencere gösterilince yeniden denenir (zamanlayıcı yok;
+`lib.rs` `recheck_static`), sürüm değişirse arayüz yeni veriyi yükler.
+
 ## u.gg (resmi olmayan)
 
 Belgesi yok; biçim açık kaynak [uggo](https://github.com/kade-robertson/uggo)

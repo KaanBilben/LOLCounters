@@ -5,6 +5,7 @@
 
 pub mod cache;
 pub mod ddragon;
+pub mod launch;
 pub mod scoring;
 pub mod settings;
 pub mod ugg;
@@ -17,13 +18,17 @@ use serde::{Deserialize, Serialize};
 use settings::{Lane, Settings};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use ugg::{Build, MatchupRow, UggPatch};
 
 /// Aynı anda en çok bu kadar şampiyon verisi indirilir (öneri ve arka plan indirmesi).
 const FETCH_CONCURRENCY: usize = 4;
+
+/// Statik veri yeniden yüklendi ve sürüm ya da yama değişti; arayüz `load_static`'i yeniden ister.
+pub const STATIC_UPDATED_EVENT: &str = "static-updated";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,6 +95,10 @@ pub struct AppState {
     partial: Mutex<HashMap<ChampKey, Partial>>,
     /// Süren indirmeler.
     inflight: Mutex<HashMap<ChampKey, ChampFuture>>,
+    /// Bellekteki statik veri kesin değil (`static_settled` yanlış): sonraki tetikte yeniden denenir.
+    static_unsettled: AtomicBool,
+    /// Süren bir yeniden deneme var (aynı anda yalnızca biri).
+    rechecking: AtomicBool,
 }
 
 impl AppState {
@@ -107,6 +116,8 @@ impl AppState {
             champs: Mutex::new(HashMap::new()),
             partial: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashMap::new()),
+            static_unsettled: AtomicBool::new(false),
+            rechecking: AtomicBool::new(false),
         }
     }
 
@@ -167,7 +178,7 @@ async fn resolve_ugg_patch(state: &AppState, dir: &Path, version: &str) -> (UggP
     }
     match ugg::resolve_patch(&state.client, version).await {
         Ok(p) => {
-            // u.gg bu yamayı henüz listelemiyorsa kaydetme; sonraki açılışta yeniden sorulur.
+            // u.gg bu yamayı henüz listelemiyorsa kaydetme; `recheck_static` yeniden sorar.
             if p.is_current_for(version) {
                 let file = PatchFile { ddragon_version: version.to_string(), ugg_patch: p.clone() };
                 let _ = cache::write(&path, &file);
@@ -182,11 +193,19 @@ async fn resolve_ugg_patch(state: &AppState, dir: &Path, version: &str) -> (UggP
     }
 }
 
-async fn static_payload(app: &AppHandle, state: &AppState) -> Result<Arc<StaticPayload>, String> {
-    let cached = lock(&state.static_data).clone();
-    if let Some(s) = cached {
-        return Ok(s);
-    }
+/// Yüklenen statik veri kesin mi: Data Dragon'ın en yeni sürümü (`latest`, ağdan öğrenildiyse)
+/// yüklendi ve u.gg o sürümün kendi yamasını listeliyor (`patch_confirmed`: ağdan ya da disk kaydından).
+/// Değilse (ağ yoktu, u.gg yamayı henüz eklemedi) veri yalnızca geçici tutulur: süreç tepside
+/// günlerce yaşadığından ana pencere gösterilince ve şampiyon seçimi başlayınca yeniden denenir.
+pub fn static_settled(latest: Option<&str>, patch: &UggPatch, patch_confirmed: bool) -> bool {
+    patch_confirmed && latest.is_some_and(|v| patch.is_current_for(v))
+}
+
+/// Statik veri ve u.gg yaması (bellek kullanılmaz); üçüncü değer `static_settled`.
+async fn resolve_static(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<(StaticPayload, UggPatch, bool), String> {
     let dir = cache_dir(app)?;
     // `fresh`: en yeni sürüm yüklendi (ağdan ya da o sürümün disk kaydından).
     let (data, fresh) = match ddragon::latest_version(&state.client).await {
@@ -208,17 +227,65 @@ async fn static_payload(app: &AppHandle, state: &AppState) -> Result<Arc<StaticP
         ),
     };
     let (patch, patch_confirmed) = resolve_ugg_patch(state, &dir, &data.version).await;
-    // Eski sürüm/yama klasörlerini açılışta bir kez temizle (yalnızca güncel olan doğrulandıysa).
+    // Eski sürüm/yama klasörlerini temizle (yalnızca güncel olan doğrulandıysa).
     if let Some(v) = &fresh {
         cache::remove_other_dirs(&dir.join("ddragon"), v);
     }
     if patch_confirmed {
         cache::remove_other_dirs(&dir.join("ugg"), &patch.patch);
     }
-    let payload = Arc::new(StaticPayload { ugg_patch: patch.display(), data });
+    let settled = static_settled(fresh.as_deref(), &patch, patch_confirmed);
+    Ok((StaticPayload { ugg_patch: patch.display(), data }, patch, settled))
+}
+
+fn store_static(state: &AppState, payload: StaticPayload, patch: UggPatch, settled: bool) -> Arc<StaticPayload> {
+    let payload = Arc::new(payload);
     *lock(&state.patch) = Some(patch);
     *lock(&state.static_data) = Some(payload.clone());
-    Ok(payload)
+    state.static_unsettled.store(!settled, Ordering::Relaxed);
+    payload
+}
+
+async fn static_payload(app: &AppHandle, state: &AppState) -> Result<Arc<StaticPayload>, String> {
+    let cached = lock(&state.static_data).clone();
+    if let Some(s) = cached {
+        return Ok(s);
+    }
+    let (payload, patch, settled) = resolve_static(app, state).await?;
+    Ok(store_static(state, payload, patch, settled))
+}
+
+/// Olay güdümlü yeniden deneme (zamanlayıcı yok): ana pencere gösterilince ve şampiyon seçimi
+/// başlayınca çağrılır. Boş gelmiş şampiyon / lane verisini bellekten atar (sonraki istekte
+/// yeniden sorulur). Statik veri kesin değilse arka planda yeniden yükler; sürüm ya da yama
+/// değiştiyse `static-updated` olayını gönderir. Veri kesinse ağ isteği yapılmaz.
+pub(crate) fn recheck_static(app: &AppHandle) {
+    forget_empty(app);
+    let state = app.state::<AppState>();
+    if !state.static_unsettled.load(Ordering::Relaxed) || state.rechecking.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<AppState>();
+        if let Ok((payload, patch, settled)) = resolve_static(&app, &state).await {
+            let old = lock(&state.static_data).clone();
+            let changed = old.is_none_or(|o| {
+                o.data.version != payload.data.version || o.ugg_patch != payload.ugg_patch
+            });
+            store_static(&state, payload, patch, settled);
+            if changed {
+                let _ = app.emit(STATIC_UPDATED_EVENT, ());
+            }
+        }
+        state.rechecking.store(false, Ordering::Release);
+    });
+}
+
+/// Bu oturumda boş gelmiş (u.gg'de dosyası olmayan) şampiyon ve lane verisini bellekten atar.
+fn forget_empty(app: &AppHandle) {
+    lock(&app.state::<AppState>().champs).retain(|_, d| !d.matchups.is_empty() || !d.overview.is_empty());
+    lock(&app.state::<RolesState>().games).retain(|_, g| !g.is_empty());
 }
 
 async fn current_patch(app: &AppHandle, state: &AppState) -> Result<UggPatch, String> {
@@ -296,7 +363,7 @@ async fn load_champ(app: AppHandle, dir: PathBuf, patch: UggPatch, key: i64) -> 
             lock(&state.partial).remove(&mem_key);
             let d = ChampData { matchups, overview };
             // İkisi de boşsa (u.gg'de dosya yok) yalnızca bellekte tutulur:
-            // bu oturumda yeniden istenmez, sonraki açılışta yeniden sorulur.
+            // `recheck_static` tetiklenene kadar (ana pencere / şampiyon seçimi) yeniden istenmez.
             if !d.matchups.is_empty() || !d.overview.is_empty() {
                 let _ = cache::write(&path, &d);
             }
@@ -346,7 +413,10 @@ fn get_settings(app: AppHandle) -> Settings {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    settings::save(&settings_path(&app)?, &settings)
+    let path = settings_path(&app)?;
+    // Arayüz yalnızca havuzu gönderir; autostart gibi Rust alanları diskteki kayıttan korunur.
+    let settings = settings::keep_backend_fields(settings, &settings::load(&path));
+    settings::save(&path, &settings)
         .map_err(|e| format!("Ayarlar kaydedilemedi: {e}"))?;
     let mut seen = HashSet::new();
     let keys: Vec<i64> = Lane::ALL
@@ -462,7 +532,7 @@ async fn load_roles(app: AppHandle, patch: UggPatch) -> Result<Arc<ugg::RoleGame
         Some(g) => g,
         None => {
             let g = ugg::fetch_roles(&app.state::<AppState>().client, &patch).await?;
-            // Boşsa (u.gg'de dosya yok) yalnızca bellekte tutulur; sonraki açılışta yeniden sorulur.
+            // Boşsa (u.gg'de dosya yok) yalnızca bellekte tutulur; `recheck_static` tetiklenince atılır.
             if !g.is_empty() {
                 let _ = cache::write(&path, &g);
             }
@@ -504,14 +574,24 @@ async fn get_roles(app: AppHandle, state: State<'_, AppState>) -> Result<HashMap
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // İlk eklenti olmalı: ikinci açılış yeni süreç başlatmaz, mevcut pencereyi öne getirir.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| launch::show_main(app)))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![launch::MINIMIZED_ARG]),
+        ))
         .manage(AppState::new())
         .manage(RolesState::default())
+        .setup(launch::setup)
+        .on_window_event(launch::on_window_event)
         .invoke_handler(tauri::generate_handler![
             load_static,
             get_settings,
             save_settings,
             recommend,
-            get_roles
+            get_roles,
+            launch::get_autostart,
+            launch::set_autostart
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

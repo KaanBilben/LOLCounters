@@ -24,6 +24,10 @@ pub struct Settings {
     /// Lane → şampiyon key'leri, tercih sırasıyla.
     #[serde(default)]
     pub pools: HashMap<Lane, Vec<i64>>,
+    /// Windows açılınca başlatma tercihi; `None` = hiç sorulmadı (ilk açılış).
+    /// Arayüz bu alanı göndermez; yalnızca Rust tarafı (`launch.rs`) değiştirir.
+    #[serde(default)]
+    pub autostart: Option<bool>,
 }
 
 /// Dosya yoksa ya da bozuksa boş ayar döner.
@@ -39,4 +43,13 @@ pub fn load(path: &Path) -> Settings {
 /// sık çağrılır.
 pub fn save(path: &Path, s: &Settings) -> std::io::Result<()> {
     crate::cache::write_atomic(path, &serde_json::to_vec_pretty(s)?)
+}
+
+/// Arayüzden gelen ayara, arayüzün göndermediği (yalnızca Rust'ın yönettiği) alanları
+/// diskteki kayıttan geri koyar; böylece havuz kaydı autostart tercihini silmez.
+/// Disk her zaman kazanır: arayüz `{ ...saved, pools }` gönderdiğinde içindeki eski
+/// autostart değeri, sonradan Ayarlar panelinden değişmiş tercihi ezmesin.
+pub fn keep_backend_fields(mut incoming: Settings, disk: &Settings) -> Settings {
+    incoming.autostart = disk.autostart;
+    incoming
 }

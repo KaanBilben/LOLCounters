@@ -26,6 +26,7 @@ projeye özel kurallar var.
 | Puanlama sabitleri (yalnızca `src-tauri/src/scoring.rs` başında) | [docs/scoring.md](docs/scoring.md) ve sahte veri `src/lib/mock.ts` |
 | Tauri komutu ya da dönen veri (`lib.rs`) | `src/lib/types.ts`, `src/lib/api.ts`, `src/lib/mock.ts` |
 | Çalıştırma / kod yapısı | [README.md](README.md) |
+| Tepsi, açılış, autostart (`launch.rs`) ya da kurulum ayarı (`tauri.conf.json` → `bundle`) | [README.md](README.md) "Kurulum ve günlük kullanım" |
 
 ## Kontrol ve test
 

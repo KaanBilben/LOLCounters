@@ -6,6 +6,7 @@
 // Preview the error state with: localStorage.setItem('lolcounters.mockOffline', '1')
 
 import type {
+  AutostartState,
   Build,
   Champion,
   Item,
@@ -134,6 +135,11 @@ export async function loadStatic(): Promise<StaticPayload> {
     shards: { ...SHARDS }
   };
   return staticCache;
+}
+
+/** The mock always loads the latest version, so it never sends `static-updated`. */
+export async function onStaticUpdated(_cb: () => void): Promise<() => void> {
+  return () => {};
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -287,4 +293,33 @@ export async function getRoles(): Promise<Roles> {
     roles[c.key] = isNew || lanes.size === 0 ? [...ALL_LANES] : [...lanes];
   });
   return roles;
+}
+
+// --- autostart (src-tauri/src/launch.rs) ------------------------------------
+// Preview the debug-build (disabled) state with: localStorage.setItem('lolcounters.mockDevBuild', '1')
+
+const AUTOSTART_KEY = 'lolcounters.mockAutostart';
+
+function mockFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function getAutostart(): Promise<AutostartState> {
+  const available = !mockFlag('lolcounters.mockDevBuild');
+  return { enabled: available && mockFlag(AUTOSTART_KEY), available };
+}
+
+export async function setAutostart(enabled: boolean): Promise<AutostartState> {
+  await delay(250);
+  if (mockFlag('lolcounters.mockDevBuild')) throw 'Geliştirme modunda kapalı';
+  try {
+    localStorage.setItem(AUTOSTART_KEY, enabled ? '1' : '0');
+  } catch {
+    /* preview only */
+  }
+  return getAutostart();
 }
