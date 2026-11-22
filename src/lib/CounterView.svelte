@@ -3,10 +3,12 @@
   import { errorText, recommend } from './api';
   import ChampionPicker from './ChampionPicker.svelte';
   import GameIcon from './GameIcon.svelte';
+  import LaneFilter from './LaneFilter.svelte';
   import LaneIcon from './LaneIcon.svelte';
   import RecommendationCard from './RecommendationCard.svelte';
+  import { inLane, watchRoles } from './roles';
   import { tooltip } from './tooltip';
-  import type { Champion, Lane, Recommendation, Settings, StaticPayload } from './types';
+  import type { Champion, Lane, Recommendation, Roles, Settings, StaticPayload } from './types';
   import { LANES, LANE_NAMES } from './util';
 
   let {
@@ -37,6 +39,17 @@
   let query = $state('');
   const enemyChamp = $derived(enemy === null ? undefined : champByKey.get(enemy));
   const showPicker = $derived(enemy === null || changing);
+
+  // enemy list: champions played in my lane unless "Hepsi"; a search covers every champion.
+  // Without lane data (still loading or failed) every champion is shown.
+  let roles = $state.raw<Roles | null>(null);
+  let showAll = $state(false);
+  // asked again on window focus if it failed (no timer)
+  $effect(() => watchRoles((r) => (roles = r)));
+  const searching = $derived(query.trim() !== '');
+  const enemyChoices = $derived(
+    roles && lane && !showAll && !searching ? inLane(data.champions, roles, lane) : data.champions
+  );
 
   type Result =
     | { status: 'loading' }
@@ -193,14 +206,20 @@
           {/if}
         </div>
         <ChampionPicker
-          champions={data.champions}
+          champions={enemyChoices}
           bind:query
           onpick={pickEnemy}
           placeholder="Karşındaki şampiyon"
           label="Karşındaki şampiyonu ara"
           large
           autofocus={active}
-        />
+        >
+          {#snippet toolbar()}
+            {#if roles && lane}
+              <LaneFilter {lane} bind:all={showAll} {searching} large />
+            {/if}
+          {/snippet}
+        </ChampionPicker>
       </div>
     {:else}
       <div class="results">

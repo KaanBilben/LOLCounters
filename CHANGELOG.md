@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## LC-006 — Lane filtresi
+Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-004
+
+> ### 2026-11-22 · Claude — Lane'e göre şampiyon listesi
+> - **Ne:** Havuzum'daki şampiyon ızgarası ve Counter'daki rakip seçimi varsayılan olarak yalnızca seçili lane'de oynanan şampiyonları gösterir; yanında "<Lane> şampiyonları | Hepsi" seçici var; arama kutusu doluyken bütün şampiyonlarda arar. Veri u.gg champion_ranking dosyasından (yama başına bir kez, `ugg/{yama}/roles.json`); lane payı %10 (`ROLE_MIN_SHARE`) ve üstü sayılır; verisi olmayan şampiyon her lane'de görünür; veri alınamazsa liste sessizce tam kalır. Yeni `get_roles` komutu ve diğer Rust kodu (LCU rakip tahmini) için `role_shares_cached`
+> - **Neden:** LoL istemcisindeki rol filtresi gibi; 170+ şampiyon içinde aramadan seçim
+> - **Etkilenen:** LC-004 (`ChampionPicker` arama satırına `toolbar` snippet'i eklendi); LC-002 (`UggPatch.rankingVersion` alanı; eski `patch.json` kayıtlarında varsayılan `1.5.0`)
+> - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src-tauri/tests/lc006_lane_filter.rs, src/lib/roles.ts, src/lib/LaneFilter.svelte, src/lib/ChampionPicker.svelte, src/lib/PoolEditor.svelte, src/lib/CounterView.svelte, src/lib/api.ts, src/lib/types.ts, src/lib/mock.ts, docs/data-sources.md, README.md, CLAUDE.md
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: inceleme bulguları
+> - **Ne:** lane verisi bir kez alınamazsa (ör. Windows açılışında ağ henüz yokken) filtre artık oturum boyunca kaybolmuyor: `roles.ts` `watchRoles()` veri gelene kadar pencere gösterilince ya da odak alınca yeniden sorar (zamanlayıcı yok); Havuzum ve Counter bunu kullanır
+> - **Dosyalar:** src/lib/roles.ts, src/lib/PoolEditor.svelte, src/lib/CounterView.svelte
+> - **Commit:** —
+
 ## LC-005 — Otomatik kayıt
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-003, LC-004
 
@@ -8,7 +23,7 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-003, LC-004
 > - **Neden:** kullanıcı tercihleri hep kayıtlı olsun; kapatınca değişiklik kaybolmasın
 > - **Etkilenen:** LC-004 (PoolEditor, +page.svelte) — kaydet düğmesi ve "dirty" kavramı kalktı; LC-003 (settings.rs) — kayıt atomik
 > - **Dosyalar:** src/lib/PoolEditor.svelte, src/routes/+page.svelte, src/lib/mock.ts, src-tauri/src/settings.rs, src-tauri/src/cache.rs, src-tauri/tests/lc005_autosave.rs, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** f7e2f2a
 
 ## LC-004 — Arayüz: Havuzum ve Counter ekranları
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-003

@@ -35,14 +35,19 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
 |---|---|
 | `src-tauri/src/lib.rs` | Tauri komutları ve uygulama durumu |
 | `src-tauri/src/ddragon.rs` | Riot Data Dragon: şampiyon, eşya, rün, büyü listeleri |
-| `src-tauri/src/ugg.rs` | u.gg: eşleşme ve build verisi (resmi olmayan kaynak) |
+| `src-tauri/src/ugg.rs` | u.gg: eşleşme, build ve lane (rol) verisi (resmi olmayan kaynak) |
 | `src-tauri/src/cache.rs` | Disk önbelleği (yama başına) |
 | `src-tauri/src/scoring.rs` | Öneri puanlaması |
 | `src-tauri/src/settings.rs` | Şampiyon havuzunun kaydı |
 | `src/lib/` | Arayüz bileşenleri ve Tauri çağrıları |
+| `src/lib/roles.ts`, `src/lib/LaneFilter.svelte` | Lane filtresi: şampiyon ızgarasında yalnızca seçili lane'in şampiyonları |
 | `src/routes/+page.svelte` | Ana sayfa (Havuzum / Counter görünümleri) |
 
 ## Durum ve sonraki adımlar
+
+- Şampiyon ızgaraları (Havuzum ve rakip seçimi) varsayılan olarak yalnızca
+  seçili lane'in şampiyonlarını gösterir ("Hepsi" ile hepsi); veri u.gg'den,
+  kural [docs/data-sources.md](docs/data-sources.md#lane-filtresi-ugg-champion_ranking).
 
 - Rakip şampiyon şimdilik elle seçiliyor. Sonraki sürüm: LoL istemcisinden
   otomatik algılama.

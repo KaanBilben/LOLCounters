@@ -17,6 +17,10 @@ const DEFAULT_API_VERSION: &str = "1.5.0";
 const REGION: &str = "12";
 /// Rank tercih sırası: Emerald+, Platinum+, Hepsi.
 const RANKS: [&str; 3] = ["17", "10", "8"];
+/// Lane filtresi: şampiyonun bir lane'deki maçı, beş lane'deki toplam maçının en az
+/// bu payıysa şampiyon o lane'de listelenir (0.10 = %10). LoL istemcisinin rol
+/// filtresine en yakın sonuç (ör. Darius Orman'da, Brand Üst'te çıkmaz); bkz. docs/data-sources.md.
+pub const ROLE_MIN_SHARE: f64 = 0.10;
 
 /// u.gg rol anahtarı.
 fn role_key(lane: Lane) -> &'static str {
@@ -70,6 +74,13 @@ pub struct UggPatch {
     pub patch: String,
     pub matchups_version: String,
     pub overview_version: String,
+    /// Lane filtresi dosyasının sürümü; eski `patch.json` kayıtlarında yoksa varsayılan.
+    #[serde(default = "default_api_version")]
+    pub ranking_version: String,
+}
+
+fn default_api_version() -> String {
+    DEFAULT_API_VERSION.to_string()
 }
 
 // ---------- JSON yardımcıları ----------
@@ -238,6 +249,7 @@ pub fn fallback_patch(ddragon_version: &str) -> UggPatch {
             .unwrap_or_else(|| ddragon_version.replace('.', "_")),
         matchups_version: DEFAULT_API_VERSION.to_string(),
         overview_version: DEFAULT_API_VERSION.to_string(),
+        ranking_version: DEFAULT_API_VERSION.to_string(),
     }
 }
 
@@ -278,6 +290,7 @@ fn choose_patch(versions: &Value, ddragon_version: &str) -> Result<UggPatch, Str
     Ok(UggPatch {
         matchups_version: ver("matchups"),
         overview_version: ver("overview"),
+        ranking_version: ver("champion_ranking"),
         patch,
     })
 }
@@ -393,4 +406,95 @@ pub async fn fetch_overview(
         p.patch, p.overview_version
     );
     Ok(parse_overview(&get_world(client, &url).await?))
+}
+
+// ---------- Lane filtresi (champion_ranking) ----------
+
+/// champion_ranking dosyasının tier'ları; sıra ve anlam `RANKS` ile aynı
+/// (emerald_plus = 17, platinum_plus = 10, overall = 8).
+const RANKING_TIERS: [&str; 3] = ["emerald_plus", "platinum_plus", "overall"];
+
+/// champion_ranking dosyasındaki rol adı.
+fn ranking_role_key(lane: Lane) -> &'static str {
+    match lane {
+        Lane::Top => "top",
+        Lane::Jungle => "jungle",
+        Lane::Mid => "mid",
+        Lane::Adc => "adc",
+        Lane::Support => "supp",
+    }
+}
+
+/// Şampiyon key → lane → maç sayısı.
+pub type RoleGames = HashMap<i64, HashMap<Lane, u32>>;
+
+/// `v[0][rol]` = `[[key(metin), [rakipler], galibiyet, maç, ...], ...]`; yalnızca key ve maç okunur.
+/// Maçı 0 olan satır alınmaz.
+pub fn parse_roles(v: &Value) -> RoleGames {
+    let mut out: RoleGames = HashMap::new();
+    let Some(roles) = v.get(0) else {
+        return out;
+    };
+    for lane in Lane::ALL {
+        let Some(rows) = roles.get(ranking_role_key(lane)).and_then(Value::as_array) else {
+            continue;
+        };
+        for row in rows {
+            let Some(row) = row.as_array() else { continue };
+            let (Some(key), Some(games)) = (row.first().and_then(as_id), row.get(3).and_then(as_u32))
+            else {
+                continue;
+            };
+            if games > 0 {
+                out.entry(key).or_default().insert(lane, games);
+            }
+        }
+    }
+    out
+}
+
+/// Lane payı = o lane'deki maç / beş lane'deki toplam maç. Hiç maçı olmayan şampiyon alınmaz.
+pub fn role_shares(games: &RoleGames) -> HashMap<i64, HashMap<Lane, f64>> {
+    games
+        .iter()
+        .filter_map(|(&key, lanes)| {
+            let total: u64 = lanes.values().map(|&g| u64::from(g)).sum();
+            (total > 0).then(|| {
+                let shares = lanes.iter().map(|(&l, &g)| (l, f64::from(g) / total as f64)).collect();
+                (key, shares)
+            })
+        })
+        .collect()
+}
+
+/// Payı en az `min` olan lane'ler, `Lane::ALL` sırasıyla.
+pub fn lanes_over(shares: &HashMap<i64, HashMap<Lane, f64>>, min: f64) -> HashMap<i64, Vec<Lane>> {
+    shares
+        .iter()
+        .map(|(&key, s)| {
+            let lanes = Lane::ALL
+                .into_iter()
+                .filter(|l| s.get(l).is_some_and(|&x| x >= min))
+                .collect();
+            (key, lanes)
+        })
+        .collect()
+}
+
+/// Bütün şampiyonların lane başına maç sayısı (tier sırasıyla ilk dolu dosya).
+/// Dosya u.gg'de yoksa (4xx, ör. yayınlanmamış yama) boş harita döner.
+pub async fn fetch_roles(client: &reqwest::Client, p: &UggPatch) -> Result<RoleGames, String> {
+    for tier in RANKING_TIERS {
+        let url = format!(
+            "{STATS_BASE}/champion_ranking/world/{}/{QUEUE}/{tier}/{}.json",
+            p.patch, p.ranking_version
+        );
+        if let Some(v) = get_typed::<Value>(client.get(&url)).await? {
+            let games = parse_roles(&v);
+            if !games.is_empty() {
+                return Ok(games);
+            }
+        }
+    }
+    Ok(HashMap::new())
 }

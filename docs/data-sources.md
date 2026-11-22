@@ -27,6 +27,7 @@ projesinden alındı ve 2026-11-22'de canlı veriyle doğrulandı. Kod:
 | Yama → API sürümü | `https://static.bigbrain.gg/assets/lol/riot_patch_update/prod/ugg/ugg-api-versions.json` |
 | Eşleşmeler | `https://stats2.u.gg/lol/1.5/matchups/{yama}/ranked_solo_5x5/{şampiyon key}/{sürüm}.json` |
 | Build (genel bakış) | `https://stats2.u.gg/lol/1.5/overview/{yama}/ranked_solo_5x5/{şampiyon key}/{sürüm}.json` |
+| Lane filtresi (şampiyon sıralaması) | `https://stats2.u.gg/lol/1.5/champion_ranking/world/{yama}/ranked_solo_5x5/{tier}/{sürüm}.json` |
 
 - `{yama}`: Data Dragon sürümünün ilk iki parçası, `_` ile: `16.23.1` → `16_23`.
   u.gg o yamayı henüz listelemiyorsa listedeki en yeni yama kullanılır.
@@ -62,3 +63,32 @@ Build dizisi (sıra numarasıyla):
 | 5 | 4./5./6. eşya seçenekleri: her biri `[id, galibiyet, maç]` listesi |
 | 6 | Toplam: `[galibiyet, maç]` |
 | 8 | Parçacıklar: `[maç, galibiyet, ["5005", ...]]` |
+
+## Lane filtresi (u.gg champion_ranking)
+
+Havuzum ve rakip seçimindeki şampiyon ızgarası, LoL istemcisindeki gibi
+yalnızca seçili lane'de oynanan şampiyonları gösterir. Veri bütün şampiyonlar
+için tek dosyadır (~145 KB, gzip ile ~57 KB); yama başına bir kez indirilir ve
+yalnızca lane başına maç sayısı `ugg/{yama}/roles.json` olarak saklanır (~12 KB).
+Kod: `fetch_roles` / `parse_roles` (`src-tauri/src/ugg.rs`), `get_roles` komutu (`src-tauri/src/lib.rs`).
+
+- `{sürüm}`: yama haritasındaki `champion_ranking` değeri, yoksa `1.5.0`.
+- `{tier}` metindir (overview'daki sayı değil); sırasıyla denenir:
+
+| Tier | Overview'daki karşılığı (doğrulandı) |
+|---|---|
+| `emerald_plus` | `17` = Emerald+ |
+| `platinum_plus` | `10` = Platinum+ |
+| `overall` | `8` = Hepsi |
+
+JSON: 4 elemanlı dizi; yalnızca `[0]` okunur:
+`{ "top" | "jungle" | "mid" | "adc" | "supp": [satır, ...] }`.
+Satır: `["şampiyon key (metin)", [10 kötü eşleşme], galibiyet, maç, ...]` →
+yalnızca `[0]` (key) ve `[3]` (maç) kullanılır. Üst dizinin `[1]`–`[3]` elemanları kullanılmaz.
+
+Kural: lane payı = o lane'deki maç / beş lane'deki toplam maç. Pay
+`ROLE_MIN_SHARE` (`ugg.rs` başında, `0.10` = %10) ya da üstündeyse şampiyon o
+lane'de listelenir. 16.23 Emerald+ ile: Darius Üst + Orman, Ashe Nişancı + Destek,
+Brand Orta + Nişancı + Destek (Üst %7 → yok). Dosyada olmayan şampiyon (yeni
+çıkmış) her lane'de görünür; veri alınamazsa arayüz sessizce bütün şampiyonları
+gösterir. Yayınlanmamış yama 403 döner (= veri yok).

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Lane, Recommendation, Settings, StaticPayload } from './types';
+import type { Lane, Recommendation, Roles, Settings, StaticPayload } from './types';
 
 // Outside Tauri (plain browser during `npm run dev`) a mock backend is used so
 // the UI can be previewed. The check on import.meta.env.DEV lets the bundler
@@ -34,4 +34,9 @@ export function errorText(e: unknown): string {
   if (typeof e === 'string') return e;
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+export async function getRoles(): Promise<Roles> {
+  if (useMock) return (await mock()).getRoles();
+  return invoke<Roles>('get_roles');
 }

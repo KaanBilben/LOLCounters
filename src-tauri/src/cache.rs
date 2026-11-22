@@ -4,6 +4,7 @@
 //! - `ddragon/{sürüm}/static.json`
 //! - `ugg/patch.json` (`{ ddragonVersion, uggPatch }`)
 //! - `ugg/{yama}/champ_{key}.json` (eşleşmeler + build birlikte)
+//! - `ugg/{yama}/roles.json` (lane filtresi: şampiyon → lane → maç sayısı)
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import type { Champion } from './types';
   import { searchChampions } from './util';
 
@@ -10,7 +11,8 @@
     placeholder = 'Şampiyon ara',
     label = 'Şampiyon ara',
     large = false,
-    autofocus = false
+    autofocus = false,
+    toolbar
   }: {
     champions: Champion[];
     onpick: (c: Champion) => void;
@@ -21,6 +23,8 @@
     label?: string;
     large?: boolean;
     autofocus?: boolean;
+    /** extra controls shown to the right of the search box (e.g. the lane filter) */
+    toolbar?: Snippet;
   } = $props();
 
   const results = $derived(searchChampions(champions, query));
@@ -43,36 +47,39 @@
 </script>
 
 <div class="picker" class:large>
-  <div class="search">
-    <svg class="glass" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="10.5" cy="10.5" r="6.5" />
-      <path d="m15.5 15.5 5 5" />
-    </svg>
-    <input
-      bind:this={input}
-      bind:value={query}
-      {placeholder}
-      aria-label={label}
-      type="text"
-      spellcheck="false"
-      autocomplete="off"
-      {onkeydown}
-    />
-    {#if query}
-      <button
-        class="clear"
-        type="button"
-        aria-label="Aramayı temizle"
-        onclick={() => {
-          query = '';
-          input?.focus();
-        }}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-      </button>
-    {:else if large}
-      <span class="hint" aria-hidden="true">Adını yaz, Enter ile seç</span>
-    {/if}
+  <div class="top">
+    <div class="search">
+      <svg class="glass" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m15.5 15.5 5 5" />
+      </svg>
+      <input
+        bind:this={input}
+        bind:value={query}
+        {placeholder}
+        aria-label={label}
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        {onkeydown}
+      />
+      {#if query}
+        <button
+          class="clear"
+          type="button"
+          aria-label="Aramayı temizle"
+          onclick={() => {
+            query = '';
+            input?.focus();
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      {:else if large}
+        <span class="hint" aria-hidden="true">Adını yaz, Enter ile seç</span>
+      {/if}
+    </div>
+    {@render toolbar?.()}
   </div>
 
   <div class="grid-wrap">
@@ -116,11 +123,17 @@
     flex: 1;
   }
 
+  .top {
+    display: flex;
+    gap: 10px;
+    flex: none;
+  }
   .search {
     position: relative;
     display: flex;
     align-items: center;
-    flex: none;
+    flex: 1;
+    min-width: 0;
   }
   .glass {
     position: absolute;

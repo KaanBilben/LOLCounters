@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
   import ChampionPicker from './ChampionPicker.svelte';
+  import LaneFilter from './LaneFilter.svelte';
   import LaneIcon from './LaneIcon.svelte';
+  import { inLane, watchRoles } from './roles';
   import { tooltip } from './tooltip';
-  import type { Champion, Lane, Settings } from './types';
+  import type { Champion, Lane, Roles, Settings } from './types';
   import { errorText } from './api';
   import { LANES, LANE_NAMES } from './util';
 
@@ -86,6 +88,17 @@
   $effect(() => {
     if (!active) untrack(flush);
   });
+
+  // lane filter: only this lane's champions unless "Hepsi"; a search covers every champion.
+  // Without lane data (still loading or failed) every champion is shown.
+  let roles = $state.raw<Roles | null>(null);
+  let showAll = $state(false);
+  // asked again on window focus if it failed (no timer)
+  $effect(() => watchRoles((r) => (roles = r)));
+  const searching = $derived(query.trim() !== '');
+  const shown = $derived(
+    roles && !showAll && !searching ? inLane(champions, roles, lane) : champions
+  );
 
   const pool = $derived(draft[lane]);
   const selected = $derived(new Map(pool.map((k, i) => [k, i + 1])));
@@ -294,13 +307,19 @@
 
   <div class="panel browse" bind:this={browseEl}>
     <ChampionPicker
-      {champions}
+      champions={shown}
       bind:query
       {selected}
       onpick={toggle}
       placeholder="Şampiyon ara (ad ya da kısaltma)"
       label="Havuza eklemek için şampiyon ara"
-    />
+    >
+      {#snippet toolbar()}
+        {#if roles}
+          <LaneFilter {lane} bind:all={showAll} {searching} />
+        {/if}
+      {/snippet}
+    </ChampionPicker>
   </div>
 
   <div class="savebar">

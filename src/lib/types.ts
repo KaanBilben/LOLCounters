@@ -81,3 +81,9 @@ export interface Recommendation {
   /** Set when this champion's data could not be fetched (network error), so 0/0 is not real "low data". */
   error: string | null;
 }
+
+/**
+ * get_roles: champion key -> lanes it is played in (lane share >= ROLE_MIN_SHARE in ugg.rs).
+ * Every Data Dragon champion is listed; one without u.gg data has all five lanes.
+ */
+export type Roles = Partial<Record<number, Lane[]>>;

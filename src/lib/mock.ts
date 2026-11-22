@@ -11,6 +11,7 @@ import type {
   Item,
   Lane,
   Recommendation,
+  Roles,
   Rune,
   Settings,
   Spell,
@@ -251,4 +252,39 @@ export async function recommend(lane: Lane, enemy: number): Promise<Recommendati
     };
   });
   return recs.sort((a, b) => b.score - a.score || a.poolIndex - b.poolIndex);
+}
+
+// --- synthetic lane data (get_roles) ----------------------------------------
+// Derived from Data Dragon class tags, close enough for a preview. The last
+// champion gets all lanes, like a brand-new release without u.gg data.
+// Preview a failed load with: localStorage.setItem('lolcounters.mockNoRoles', '1')
+
+const ALL_LANES: Lane[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+const TAG_LANES: Record<string, Lane[]> = {
+  Marksman: ['adc'],
+  Support: ['support'],
+  Mage: ['mid'],
+  Assassin: ['mid'],
+  Fighter: ['top'],
+  Tank: ['top', 'support']
+};
+
+export async function getRoles(): Promise<Roles> {
+  const { champions } = await loadStatic();
+  await delay(300);
+  let failed = false;
+  try {
+    failed = localStorage.getItem('lolcounters.mockNoRoles') === '1';
+  } catch {
+    /* storage blocked */
+  }
+  if (failed) throw 'mock: lane verisi alınamadı';
+  const roles: Roles = {};
+  champions.forEach((c, i) => {
+    const lanes = new Set<Lane>(c.tags.slice(0, 2).flatMap((t) => TAG_LANES[t] ?? []));
+    if (['Fighter', 'Assassin', 'Tank'].includes(c.tags[0]) && hash(c.key) % 3 === 0) lanes.add('jungle');
+    const isNew = i === champions.length - 1;
+    roles[c.key] = isNew || lanes.size === 0 ? [...ALL_LANES] : [...lanes];
+  });
+  return roles;
 }

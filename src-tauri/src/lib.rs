@@ -416,15 +416,102 @@ async fn recommend(
         .collect())
 }
 
+// ---------- Lane filtresi ----------
+
+/// Süren bir lane verisi indirmesi; aynı yamayı isteyen herkes bunu bekler.
+type RolesFuture = Shared<BoxFuture<'static, Result<Arc<ugg::RoleGames>, String>>>;
+
+/// Lane verisi (diskte `ugg/{yama}/roles.json`, lane başına maç sayısı).
+#[derive(Default)]
+struct RolesState {
+    /// yama → yüklenmiş veri
+    games: Mutex<HashMap<String, Arc<ugg::RoleGames>>>,
+    /// yama → süren indirme
+    inflight: Mutex<HashMap<String, RolesFuture>>,
+}
+
+/// Lane başına maç sayıları: bellek → (süren indirme varsa onu bekle) → disk → ağ.
+async fn role_games(app: &AppHandle) -> Result<Arc<ugg::RoleGames>, String> {
+    let patch = current_patch(app, &app.state::<AppState>()).await?;
+    let roles = app.state::<RolesState>();
+    let cached = lock(&roles.games).get(&patch.patch).cloned();
+    if let Some(g) = cached {
+        return Ok(g);
+    }
+    let fut = lock(&roles.inflight)
+        .entry(patch.patch.clone())
+        .or_insert_with(|| load_roles(app.clone(), patch.clone()).boxed().shared())
+        .clone();
+    let result = fut.clone().await;
+    let mut inflight = lock(&roles.inflight);
+    if inflight.get(&patch.patch).is_some_and(|f| f.ptr_eq(&fut)) {
+        inflight.remove(&patch.patch);
+    }
+    result
+}
+
+/// Asıl yükleme (aynı yama için aynı anda yalnızca bir tane çalışır).
+async fn load_roles(app: AppHandle, patch: UggPatch) -> Result<Arc<ugg::RoleGames>, String> {
+    let roles = app.state::<RolesState>();
+    let cached = lock(&roles.games).get(&patch.patch).cloned();
+    if let Some(g) = cached {
+        return Ok(g);
+    }
+    let path = cache_dir(&app)?.join("ugg").join(&patch.patch).join("roles.json");
+    let games = match cache::read::<ugg::RoleGames>(&path) {
+        Some(g) => g,
+        None => {
+            let g = ugg::fetch_roles(&app.state::<AppState>().client, &patch).await?;
+            // Boşsa (u.gg'de dosya yok) yalnızca bellekte tutulur; sonraki açılışta yeniden sorulur.
+            if !g.is_empty() {
+                let _ = cache::write(&path, &g);
+            }
+            g
+        }
+    };
+    let games = Arc::new(games);
+    lock(&roles.games).insert(patch.patch, games.clone());
+    Ok(games)
+}
+
+/// Diğer Rust kodu için (ör. rakibin lane'ini tahmin etmek): şampiyon key → lane → pay
+/// (lane maçı / toplam maç). Veri eksikse bir kez indirir; sonra bellekten döner.
+pub(crate) async fn role_shares_cached(app: &AppHandle) -> Result<HashMap<i64, HashMap<Lane, f64>>, String> {
+    let games = role_games(app).await?;
+    Ok(ugg::role_shares(&games))
+}
+
+/// `lanes` içinde olmayan şampiyonlar (ör. yeni çıkmış) bütün lane'lerde oynanabilir sayılır.
+pub fn lanes_with_fallback(
+    mut lanes: HashMap<i64, Vec<Lane>>,
+    champion_keys: &[i64],
+) -> HashMap<i64, Vec<Lane>> {
+    for &key in champion_keys {
+        lanes.entry(key).or_insert_with(|| Lane::ALL.to_vec());
+    }
+    lanes
+}
+
+/// Şampiyon key → oynandığı lane'ler (payı en az `ugg::ROLE_MIN_SHARE` olanlar).
+/// Data Dragon'daki her şampiyon listededir; verisi olmayan her lane'de görünür.
+#[tauri::command]
+async fn get_roles(app: AppHandle, state: State<'_, AppState>) -> Result<HashMap<i64, Vec<Lane>>, String> {
+    let shares = role_shares_cached(&app).await?;
+    let keys: Vec<i64> = static_payload(&app, &state).await?.data.champions.iter().map(|c| c.key).collect();
+    Ok(lanes_with_fallback(ugg::lanes_over(&shares, ugg::ROLE_MIN_SHARE), &keys))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState::new())
+        .manage(RolesState::default())
         .invoke_handler(tauri::generate_handler![
             load_static,
             get_settings,
             save_settings,
-            recommend
+            recommend,
+            get_roles
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

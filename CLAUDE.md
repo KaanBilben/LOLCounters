@@ -22,6 +22,7 @@ projeye özel kurallar var.
 | Değişen | Güncellenecek |
 |---|---|
 | u.gg adresi ya da JSON biçimi (`ugg.rs`) | [docs/data-sources.md](docs/data-sources.md) |
+| Lane filtresi eşiği `ROLE_MIN_SHARE` (`ugg.rs` başında) | [docs/data-sources.md](docs/data-sources.md#lane-filtresi-ugg-champion_ranking) |
 | Puanlama sabitleri (yalnızca `src-tauri/src/scoring.rs` başında) | [docs/scoring.md](docs/scoring.md) ve sahte veri `src/lib/mock.ts` |
 | Tauri komutu ya da dönen veri (`lib.rs`) | `src/lib/types.ts`, `src/lib/api.ts`, `src/lib/mock.ts` |
 | Çalıştırma / kod yapısı | [README.md](README.md) |
