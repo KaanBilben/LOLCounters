@@ -8,20 +8,20 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
 > - **Neden:** seçim sırasında oyunu bırakmadan öneriyi görmek; oyun içinde kaplama olmasın (Riot kuralı)
 > - **Etkilenen:** LC-008 — seçim başlangıç/bitiş kancaları artık pencereyi açıp kapatıyor
 > - **Dosyalar:** src-tauri/src/compact.rs, src-tauri/src/lib.rs, src-tauri/capabilities/compact.json, src/routes/compact/+page.svelte, src/routes/+page.svelte, src/lib/api.ts, src/lib/mock.ts, README.md, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** 0a79e9e
 >
 > ### 2026-11-22 · Claude — Entegrasyon: ana pencereyi açma tek yerde
 > - **Ne:** `open_main_window` artık LC-007'nin `launch::show_main` fonksiyonunu çağırır (tepsi ve tek kopya da aynısını kullanır)
 > - **Neden:** aynı kod iki yerde durmasın
 > - **Etkilenen:** LC-007
 > - **Dosyalar:** src-tauri/src/lib.rs
-> - **Commit:** —
+> - **Commit:** 0a79e9e
 >
 > ### 2026-11-22 · Claude — Fix: inceleme bulguları
 > - **Ne:** havuz değişince küçük pencere listeyi yeniliyor: `save_settings` kayıttan sonra `pools-changed` olayını gönderir, küçük pencere bunda öneriyi yeniden ister ("Havuzu düzenle" ile doldurulan havuz artık "havuzun boş" olarak kalmıyor; eski satırlar yenisi gelene kadar görünür, zamanlayıcı yok). Entegrasyon: küçük penceredeki lane seçici LC-008'in `set_my_lane`'ini çağırır (atanmış rol yokken rakip tahmini); LC-007'nin `static-updated` olayında statik veri yeniden yüklenir. Sahte veri: `onPoolsChanged` başka önizleme penceresindeki kaydı `storage` olayıyla duyar, `setMyLane` seçilen lane'in rakibini tahmin eder
 > - **Etkilenen:** LC-003 (`save_settings` olay gönderiyor), LC-007, LC-008
 > - **Dosyalar:** src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/api.ts, src/lib/mock.ts
-> - **Commit:** —
+> - **Commit:** 0a79e9e
 
 ## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
