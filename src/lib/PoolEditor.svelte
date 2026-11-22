@@ -430,7 +430,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    max-height: 104px;
+    max-height: 92px; /* tam 2 satır çip: 2 + 40 + 8 + 40 + 2 */
     overflow-y: auto;
     padding: 2px;
   }
@@ -633,7 +633,7 @@
       padding: 8px 12px;
     }
     .chips {
-      max-height: 68px;
+      max-height: 92px;
     }
     .browse {
       padding: 10px 12px;

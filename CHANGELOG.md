@@ -13,6 +13,11 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002, LC-003
 > - **Ne:** küçük pencerede (900×620) şampiyon ızgarası sığıyor; boş aramada Enter seçim yapmıyor; klavye odağı (kaldırma, ikonlar, lane seçici); verisi alınamayan şampiyon "Alınamadı" olarak gösteriliyor ve sonuç önbelleğe alınmıyor; sürükle-bırak için `dragDropEnabled: false`
 > - **Dosyalar:** src/lib/*.svelte, src-tauri/tauri.conf.json
 > - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: havuz satırı yarım çip göstermiyor
+> - **Ne:** havuz çip listesinin yüksekliği tam 2 satıra ayarlandı (92 px); 900×620 pencerede 5. şampiyon yarım kesik görünüyordu
+> - **Dosyalar:** src/lib/PoolEditor.svelte
+> - **Commit:** —
 
 ## LC-003 — Puanlama ve havuz kaydı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-002
