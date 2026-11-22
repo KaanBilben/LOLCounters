@@ -58,6 +58,7 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
 | `src-tauri/src/ddragon.rs` | Riot Data Dragon: şampiyon, eşya, rün, büyü listeleri |
 | `src-tauri/src/ugg.rs` | u.gg: eşleşme, build ve lane (rol) verisi (resmi olmayan kaynak) |
 | `src-tauri/src/lcu.rs` | LoL istemcisi (LCU): şampiyon seçimini okur; LCU kodunun tek yeri |
+| `src-tauri/src/compact.rs` | Küçük pencere: şampiyon seçiminde sağ altta, her zaman üstte |
 | `src-tauri/src/cache.rs` | Disk önbelleği (yama başına) |
 | `src-tauri/src/scoring.rs` | Öneri puanlaması |
 | `src-tauri/src/settings.rs` | Şampiyon havuzunun ve autostart tercihinin kaydı |
@@ -65,6 +66,7 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
 | `src/lib/` | Arayüz bileşenleri ve Tauri çağrıları |
 | `src/lib/roles.ts`, `src/lib/LaneFilter.svelte` | Lane filtresi: şampiyon ızgarasında yalnızca seçili lane'in şampiyonları |
 | `src/routes/+page.svelte` | Ana sayfa (Havuzum / Counter görünümleri) |
+| `src/routes/compact/+page.svelte` | Küçük pencerenin sayfası (rakipler, havuz sıralaması, kilitten sonra build) |
 
 ## Durum ve sonraki adımlar
 
@@ -73,5 +75,8 @@ Kurulum dosyası üretmek için: `npm run tauri build`.
   kural [docs/data-sources.md](docs/data-sources.md#lane-filtresi-ugg-champion_ranking).
 - Şampiyon seçimi LoL istemcisinden okunur (rol, kilit, görünen rakipler,
   rakip tahmini). İstemci açıkken henüz canlı test edilmedi.
+- Şampiyon seçimi başlayınca sağ altta küçük bir pencere açılır (kilitten önce
+  havuzun rakibe göre sıralaması, sonra şampiyonun build'i); oyun başlayınca
+  kapanır, oyun içinde hiçbir şey göstermez. Henüz canlı test edilmedi.
 - Rün ve eşya önerileri şampiyonun o lane'deki genel build'idir; rakibe özel
   build henüz yok.

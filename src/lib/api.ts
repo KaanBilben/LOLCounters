@@ -94,3 +94,36 @@ export async function onChampSelect(cb: (s: ChampSelectState) => void): Promise<
   const { listen } = await import('@tauri-apps/api/event');
   return listen<ChampSelectState>('champ-select', (e) => cb(e.payload));
 }
+
+// --- LC-009: compact window ---------------------------------------------------
+
+/** One champion (even outside the pool) vs one enemy, with its general build for the lane. */
+export async function championMatchup(lane: Lane, champion: number, enemy: number): Promise<Recommendation> {
+  if (useMock) return (await mock()).championMatchup(lane, champion, enemy);
+  return invoke<Recommendation>('champion_matchup', { lane, champion, enemy });
+}
+
+/** Brings the main window to the front. */
+export async function openMainWindow(): Promise<void> {
+  if (useMock) return (await mock()).openMainWindow();
+  return invoke<void>('open_main_window');
+}
+
+/** Listens to `pools-changed` (a pool was saved, e.g. from the main window). Returns unlisten. */
+export async function onPoolsChanged(cb: () => void): Promise<() => void> {
+  if (useMock) return (await mock()).onPoolsChanged(cb);
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen('pools-changed', () => cb());
+}
+
+/** Closes the compact window (it opens again at the next champion select). */
+export async function closeCompact(): Promise<void> {
+  if (useMock) return (await mock()).closeCompact();
+  return invoke<void>('close_compact');
+}
+
+/** Dev only: opens the compact window without the League client. */
+export async function openCompactPreview(): Promise<void> {
+  if (useMock) return (await mock()).openCompactPreview();
+  return invoke<void>('open_compact_preview');
+}

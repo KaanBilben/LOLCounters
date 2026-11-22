@@ -96,6 +96,16 @@
         {/each}
       </div>
       <span class="patch" title="Data Dragon {data.version}">Yama {data.uggPatch}</span>
+      {#if import.meta.env.DEV}
+        <!-- LC-009: dev only, opens the compact window without the League client -->
+        <button
+          type="button"
+          class="dev-compact"
+          onclick={async () => (await import('$lib/api')).openCompactPreview()}
+        >
+          <span class="dev-tag">Dev</span> Küçük pencere
+        </button>
+      {/if}
     {/if}
     <SettingsMenu />
   </header>
@@ -246,6 +256,38 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     white-space: nowrap;
+  }
+
+  /* LC-009: dev-only compact window preview button */
+  .dev-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px 0 4px;
+    border: 1px dashed rgba(10, 200, 185, 0.45);
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 11.5px;
+    white-space: nowrap;
+    transition:
+      color var(--t-fast) var(--ease),
+      border-color var(--t-fast) var(--ease);
+  }
+  .dev-compact:hover {
+    color: var(--text);
+    border-color: var(--teal);
+  }
+  .dev-tag {
+    padding: 0 6px;
+    border-radius: 8px;
+    background: var(--teal-soft);
+    color: #7fe9df;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 16px;
   }
 
   .main {

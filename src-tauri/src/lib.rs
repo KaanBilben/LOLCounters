@@ -4,6 +4,7 @@
 //! Zamanlayıcı ya da sürekli arka plan işi yoktur.
 
 pub mod cache;
+pub mod compact;
 pub mod ddragon;
 pub mod launch;
 pub mod lcu;
@@ -30,6 +31,9 @@ const FETCH_CONCURRENCY: usize = 4;
 
 /// Statik veri yeniden yüklendi ve sürüm ya da yama değişti; arayüz `load_static`'i yeniden ister.
 pub const STATIC_UPDATED_EVENT: &str = "static-updated";
+
+/// Havuz kaydedildi; küçük pencere önerisini yeniden ister (LC-009).
+pub const POOLS_CHANGED_EVENT: &str = "pools-changed";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -419,6 +423,8 @@ fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     let settings = settings::keep_backend_fields(settings, &settings::load(&path));
     settings::save(&path, &settings)
         .map_err(|e| format!("Ayarlar kaydedilemedi: {e}"))?;
+    // Küçük pencere açıksa havuz listesini yeniler (olay güdümlü, yoklama yok).
+    let _ = app.emit(POOLS_CHANGED_EVENT, ());
     let mut seen = HashSet::new();
     let keys: Vec<i64> = Lane::ALL
         .iter()
@@ -581,15 +587,19 @@ async fn lcu_role_shares(app: &AppHandle) -> Result<HashMap<i64, HashMap<Lane, f
     role_shares_cached(app).await
 }
 
-/// Şampiyon seçimi başladı (LC-009 küçük pencereyi burada açar).
-/// Kesin olmayan statik veri de burada yeniden denenir (LC-007 `recheck_static`): uygulama
-/// tepside günlerce yaşar ve ana pencere hiç açılmadan yalnızca seçimde kullanılabilir.
+/// Şampiyon seçimi başladı: küçük pencere açılır (LC-009). Kesin olmayan statik veri de
+/// burada yeniden denenir (LC-007 `recheck_static`): uygulama tepside günlerce yaşar ve ana
+/// pencere hiç açılmadan yalnızca seçimde kullanılabilir.
 fn on_champ_select_start(app: &AppHandle) {
     recheck_static(app);
+    compact::sync(app, true);
 }
 
 /// Şampiyon seçimi bitti: lobiye dönüş, kuyruk, oyun başlangıcı ya da bağlantı kopması.
-fn on_champ_select_end(_app: &AppHandle) {}
+/// Küçük pencere kapanır (LC-009).
+fn on_champ_select_end(app: &AppHandle) {
+    compact::sync(app, false);
+}
 
 #[tauri::command]
 fn get_champ_select_state(state: State<'_, lcu::LcuState>) -> lcu::ChampSelectPayload {
@@ -605,6 +615,57 @@ async fn set_opponent(app: AppHandle, champion_key: Option<i64>) -> lcu::ChampSe
 #[tauri::command]
 async fn set_my_lane(app: AppHandle, lane: Option<Lane>) -> lcu::ChampSelectPayload {
     lcu::set_my_lane(&app, lane).await
+}
+
+// --- LC-009: küçük pencere -----------------------------------------------------
+
+/// Tek şampiyonun bir rakibe karşı sonucu ve o lane'deki genel build'i (havuzda olmasa da).
+/// Küçük pencere kilitten sonra bunu gösterir.
+#[tauri::command]
+async fn champion_matchup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane: Lane,
+    champion: i64,
+    enemy: i64,
+) -> Result<Recommendation, String> {
+    let patch = current_patch(&app, &state).await?;
+    let dir = cache_dir(&app)?;
+    let c = champion_data(&app, &dir, &patch, champion).await?;
+    let row = c
+        .data
+        .matchups
+        .get(&lane)
+        .and_then(|rows| rows.iter().find(|r| r.opponent == enemy).cloned());
+    let candidate = Candidate {
+        champion,
+        pool_index: 0,
+        wins: row.as_ref().map_or(0, |r| r.wins),
+        matches: row.as_ref().map_or(0, |r| r.matches),
+    };
+    let scored = scoring::rank(&[candidate]).remove(0);
+    Ok(Recommendation { scored, build: c.data.overview.get(&lane).cloned(), error: c.error.clone() })
+}
+
+/// Ana pencereyi öne getirir (küçük penceredeki düğme).
+#[tauri::command]
+fn open_main_window(app: AppHandle) {
+    launch::show_main(&app);
+}
+
+/// Küçük pencereyi kapatır (× düğmesi); sonraki şampiyon seçiminde yeniden açılır.
+#[tauri::command]
+async fn close_compact(app: AppHandle) {
+    compact::close(&app);
+}
+
+/// Yalnızca geliştirmede: istemci olmadan küçük pencereyi açar. Dağıtım sürümünde hata döner.
+#[tauri::command]
+async fn open_compact_preview(app: AppHandle) -> Result<(), String> {
+    if !cfg!(debug_assertions) {
+        return Err("Yalnızca geliştirme sürümünde".into());
+    }
+    compact::open(&app).map_err(|e| format!("Küçük pencere açılamadı: {e}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -636,7 +697,11 @@ pub fn run() {
             launch::set_autostart,
             get_champ_select_state,
             set_opponent,
-            set_my_lane
+            set_my_lane,
+            champion_matchup,
+            open_main_window,
+            close_compact,
+            open_compact_preview
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

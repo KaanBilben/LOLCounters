@@ -4,6 +4,10 @@
 // only imports this module when import.meta.env.DEV is true.
 //
 // Preview the error state with: localStorage.setItem('lolcounters.mockOffline', '1')
+//
+// Champion select (compact window, http://localhost:1420/compact): pick the state with
+//   localStorage.setItem('lolcounters.mockChampSelect', 'none' | 'waiting' | 'picking' | 'locked' | 'blind')
+// and reload (default 'picking'). The pre-lock list ranks your Havuzum top-lane pool.
 
 import type {
   AutostartState,
@@ -325,34 +329,147 @@ export async function setAutostart(enabled: boolean): Promise<AutostartState> {
 }
 
 // --- LC-008: League client champion select ------------------------------------
-// The mock has no League client: the state is always "not connected".
+// No real client: a fake state picked with localStorage 'lolcounters.mockChampSelect'
+// (see the top of this file).
 
 import type { ChampSelectState } from './types';
 
-const NO_CLIENT: ChampSelectState = {
-  connected: false,
-  active: false,
-  myLane: null,
-  myChampion: null,
-  myIntent: null,
-  locked: false,
-  enemies: [],
-  opponent: null,
-  opponentChosen: false
-};
+type MockChampSelect = 'none' | 'waiting' | 'picking' | 'locked' | 'blind';
+const CHAMP_SELECT_KEY = 'lolcounters.mockChampSelect';
+// Riven, Lee Sin, Ahri, Jinx, Thresh
+const MOCK_ENEMIES = [92, 64, 103, 222, 412];
+
+/** undefined: no manual choice (use the guess). */
+let mockOpponent: number | undefined;
+/** Lane picked by hand (blind pick has no assigned role). */
+let mockLane: Lane | null = null;
+/** The mock guess: the enemy in MOCK_ENEMIES order top, jungle, mid, adc, support. */
+const MOCK_LANE_ORDER: Lane[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+const champSelectListeners = new Set<(s: ChampSelectState) => void>();
+
+function mockChampSelectMode(): MockChampSelect {
+  try {
+    const v = localStorage.getItem(CHAMP_SELECT_KEY);
+    if (v === 'none' || v === 'waiting' || v === 'picking' || v === 'locked' || v === 'blind') return v;
+  } catch {
+    /* storage blocked */
+  }
+  return 'picking';
+}
+
+async function mockChampSelectState(): Promise<ChampSelectState> {
+  const mode = mockChampSelectMode();
+  const base: ChampSelectState = {
+    connected: mode !== 'none',
+    active: mode !== 'none',
+    myLane: mode === 'none' || mode === 'blind' ? null : 'top',
+    myChampion: null,
+    myIntent: null,
+    locked: false,
+    enemies: [],
+    opponent: null,
+    opponentChosen: false
+  };
+  if (mode === 'none' || mode === 'waiting') return base;
+  const pool = (await getSettings()).pools.top ?? [];
+  const locked = mode === 'locked';
+  const enemies = locked ? MOCK_ENEMIES : MOCK_ENEMIES.slice(0, 3);
+  // the guess needs my lane; in blind pick only the hand-picked one (setMyLane)
+  const lane = base.myLane ?? mockLane;
+  const laneEnemy = lane ? MOCK_ENEMIES[MOCK_LANE_ORDER.indexOf(lane)] : undefined;
+  const guess = laneEnemy !== undefined && enemies.includes(laneEnemy) ? laneEnemy : null;
+  const opponent = mockOpponent !== undefined && enemies.includes(mockOpponent) ? mockOpponent : guess;
+  return {
+    ...base,
+    myChampion: locked ? 122 : null,
+    myIntent: locked ? null : (pool[1] ?? pool[0] ?? 86),
+    locked,
+    enemies,
+    opponent,
+    opponentChosen: opponent !== null && opponent === mockOpponent
+  };
+}
 
 export async function getChampSelectState(): Promise<ChampSelectState> {
-  return { ...NO_CLIENT };
+  return mockChampSelectState();
 }
 
-export async function setOpponent(_championKey: number | null): Promise<ChampSelectState> {
-  return { ...NO_CLIENT };
+export async function setOpponent(championKey: number | null): Promise<ChampSelectState> {
+  mockOpponent = championKey ?? undefined;
+  const s = await mockChampSelectState();
+  for (const cb of champSelectListeners) cb(s);
+  return s;
 }
 
-export async function setMyLane(_lane: Lane | null): Promise<ChampSelectState> {
-  return { ...NO_CLIENT };
+export async function setMyLane(lane: Lane | null): Promise<ChampSelectState> {
+  mockLane = lane;
+  const s = await mockChampSelectState();
+  for (const cb of champSelectListeners) cb(s);
+  return s;
 }
 
-export function onChampSelect(_cb: (s: ChampSelectState) => void): () => void {
-  return () => {};
+export function onChampSelect(cb: (s: ChampSelectState) => void): () => void {
+  champSelectListeners.add(cb);
+  return () => champSelectListeners.delete(cb);
+}
+
+// --- LC-009: compact window ---------------------------------------------------
+
+/** One champion vs one enemy with the general build (same synthetic numbers as recommend). */
+export async function championMatchup(
+  lane: Lane,
+  champion: number,
+  enemy: number
+): Promise<Recommendation> {
+  await delay(400);
+  let offline = false;
+  try {
+    offline = localStorage.getItem(OFFLINE_KEY) === '1';
+  } catch {
+    /* storage blocked: treat as online */
+  }
+  if (offline) throw 'mock: network unreachable';
+  const h = hash(champion * 7919 + enemy * 31 + lane.length);
+  const matches = enemy === 0 ? 0 : 250 + (h % 3200);
+  const rate = 0.43 + ((h >>> 8) % 1400) / 10000;
+  const wins = Math.round(matches * rate);
+  const adjusted = (wins + PRIOR_GAMES / 2) / (matches + PRIOR_GAMES);
+  let verdict: Verdict;
+  if (matches < LOW_DATA_MATCHES) verdict = 'lowData';
+  else if (adjusted >= GOOD) verdict = 'good';
+  else if (adjusted <= HARD) verdict = 'hard';
+  else verdict = 'even';
+  return {
+    champion,
+    poolIndex: 0,
+    wins,
+    matches,
+    winrate: matches > 0 ? wins / matches : null,
+    adjusted,
+    score: adjusted * 100 + PREF_MAX_BONUS,
+    verdict,
+    build: MOCK_BUILD,
+    error: null
+  };
+}
+
+/** The preview windows share localStorage: a save in another window fires `storage` here. */
+export async function onPoolsChanged(cb: () => void): Promise<() => void> {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === SETTINGS_KEY) cb();
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
+}
+
+export async function openMainWindow(): Promise<void> {
+  /* the browser preview has no main window to raise */
+}
+
+export async function closeCompact(): Promise<void> {
+  window.close(); // works for the preview popup opened by openCompactPreview
+}
+
+export async function openCompactPreview(): Promise<void> {
+  window.open('/compact', 'lolcounters-compact', 'popup,width=380,height=260');
 }

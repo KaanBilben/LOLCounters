@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## LC-009 — Küçük pencere: şampiyon seçiminde her zaman üstte
+Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
+
+> ### 2026-11-22 · Claude — Şampiyon seçimi penceresi
+> - **Ne:** yeni `compact.rs`: seçim başlayınca birincil ekranın çalışma alanının sağ altında (12 px boşluk) 380×260, çerçevesiz, gölgeli, her zaman üstte, görev çubuğunda görünmeyen ve odak çalmayan pencere; seçim bitince ya da oyun başlayınca yok edilir. Sayfa `src/routes/compact/+page.svelte`: sürüklenebilir başlık (lane, ana pencereyi aç, ×), görünen rakipler (tahmin edilen altın halkalı, tıklayınca değişir), kilitten önce havuzun rakibe karşı ilk 3'ü (oran, etiket, ★ en iyi, "Seçimin"), kilitten sonra şampiyonum vs rakip + genel build (ana rün, ikincil ağaç, 2 büyü, çekirdek eşyalar); lane bilinmiyorsa küçük lane seçici; istemci yok / seçim bekleniyor / havuz boş / veri alınamadı durumları. Yeni komutlar `champion_matchup` (havuz dışı şampiyon için de), `open_main_window`, `close_compact`, `open_compact_preview` (yalnızca geliştirme; ana pencerede dev düğmesi). Ayrı yetki dosyası `capabilities/compact.json` (yalnızca başlıktan sürükleme izni eklendi). Sahte veri: `lolcounters.mockChampSelect`
+> - **Neden:** seçim sırasında oyunu bırakmadan öneriyi görmek; oyun içinde kaplama olmasın (Riot kuralı)
+> - **Etkilenen:** LC-008 — seçim başlangıç/bitiş kancaları artık pencereyi açıp kapatıyor
+> - **Dosyalar:** src-tauri/src/compact.rs, src-tauri/src/lib.rs, src-tauri/capabilities/compact.json, src/routes/compact/+page.svelte, src/routes/+page.svelte, src/lib/api.ts, src/lib/mock.ts, README.md, CLAUDE.md
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Entegrasyon: ana pencereyi açma tek yerde
+> - **Ne:** `open_main_window` artık LC-007'nin `launch::show_main` fonksiyonunu çağırır (tepsi ve tek kopya da aynısını kullanır)
+> - **Neden:** aynı kod iki yerde durmasın
+> - **Etkilenen:** LC-007
+> - **Dosyalar:** src-tauri/src/lib.rs
+> - **Commit:** —
+>
+> ### 2026-11-22 · Claude — Fix: inceleme bulguları
+> - **Ne:** havuz değişince küçük pencere listeyi yeniliyor: `save_settings` kayıttan sonra `pools-changed` olayını gönderir, küçük pencere bunda öneriyi yeniden ister ("Havuzu düzenle" ile doldurulan havuz artık "havuzun boş" olarak kalmıyor; eski satırlar yenisi gelene kadar görünür, zamanlayıcı yok). Entegrasyon: küçük penceredeki lane seçici LC-008'in `set_my_lane`'ini çağırır (atanmış rol yokken rakip tahmini); LC-007'nin `static-updated` olayında statik veri yeniden yüklenir. Sahte veri: `onPoolsChanged` başka önizleme penceresindeki kaydı `storage` olayıyla duyar, `setMyLane` seçilen lane'in rakibini tahmin eder
+> - **Etkilenen:** LC-003 (`save_settings` olay gönderiyor), LC-007, LC-008
+> - **Dosyalar:** src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/api.ts, src/lib/mock.ts
+> - **Commit:** —
+
 ## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
 
@@ -8,20 +31,20 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
 > - **Neden:** rakibi elle seçmek yerine şampiyon seçiminde otomatik öneri
 > - **Etkilenen:** LC-006 — rol payları `lib.rs` `lcu_role_shares()` üzerinden alınır; şimdilik boş, entegrasyonda `role_shares_cached`'e bağlanacak (o zamana kadar rakip tahmini yok, elle seçilebilir)
 > - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/lib.rs, src-tauri/Cargo.toml, src-tauri/certs/riotgames.pem, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, README.md, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** 64ed8ba
 >
 > ### 2026-11-22 · Claude — Entegrasyon: rakip tahmini lane verisine bağlandı
 > - **Ne:** `lcu_role_shares()` artık LC-006'nın `role_shares_cached` verisini kullanır (bellek → disk `ugg/{yama}/roles.json` → yoksa bir kez indirme); veri alınamazsa boş döner ve rakip elle seçilir
 > - **Neden:** stub boş harita döndürdüğü için rakip tahmini hiç çalışmıyordu
 > - **Etkilenen:** LC-006 (`role_shares_cached` artık LCU de kullanıyor)
 > - **Dosyalar:** src-tauri/src/lib.rs, src-tauri/tests/lc008.rs, docs/data-sources.md
-> - **Commit:** —
+> - **Commit:** 64ed8ba
 >
 > ### 2026-11-22 · Claude — Fix: inceleme bulguları
 > - **Ne:** (1) olay döngüsü artık ağ beklemiyor: `update` değişikliği uygular, başlangıç/bitiş kancalarını çağırır ve hemen döner; rakip tahmini ayrı bir görevde (`guess_task`) hesaplanır ve yalnızca seçim ve girdi hâlâ aynıysa yazılır. Tahmin yalnızca görünen rakipler ya da lane değişince yeniden hesaplanır (`guess_input`; niyet/gezinme yeni istek başlatmaz); lane verisi alınamazsa o seçimde yeniden denenmez. Böylece yavaş u.gg oyun başlangıcı çerçevesini ve küçük pencerenin kapanmasını geciktirmez. (2) Yeni `set_my_lane` komutu: atanmış rol yokken (pozisyonsuz seçim) elle seçilen lane tahminde kullanılır; seçim bitince sıfırlanır. (3) LCU REST istemcisi `no_proxy()` ile kuruluyor: `HTTPS_PROXY`/Windows proxy ayarı parolayı bir proxy'ye göndermez. Ayrıca seçim başlangıcında LC-007'nin `recheck_static`'i çağrılır. Yeni testler: `tests/lc008.rs` `guess_input_ignores_my_hover`, `guess_input_uses_manual_lane_without_assigned_role`
 > - **Etkilenen:** LC-007 (`recheck_static` artık seçim başlangıcında da çalışır), LC-009 (küçük penceredeki lane seçici `set_my_lane`'i çağıracak)
 > - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/lib.rs, src-tauri/tests/lc008.rs, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md
-> - **Commit:** —
+> - **Commit:** 64ed8ba
 
 ## LC-007 — Kolay açılış: simge, kurulum, tepsi, tek kopya, autostart
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003, LC-004

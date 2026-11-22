@@ -16,6 +16,8 @@ projeye özel kurallar var.
   adresler, oturum biçimi) yalnızca `src-tauri/src/lcu.rs` içindedir.
 - **Riot kuralı:** Uygulama başka oyuncuların adını ya da istatistiğini hiçbir
   yerde göstermez; yalnızca şampiyon verisi kullanılır.
+- **Oyun içinde kaplama yok:** küçük pencere yalnızca şampiyon seçimi sürerken
+  açıktır; oyun başlayınca (ya da seçim bitince) kapanır.
 - **Arayüz dili Türkçe;** şampiyon, eşya, rün ve büyü adları Data Dragon
   `tr_TR` verisinden gelir, elle yazılmaz.
 
@@ -41,6 +43,9 @@ projeye özel kurallar var.
   `src/lib/mock.ts` sahte veriyi kullanır; hata durumları için localStorage'a
   `lolcounters.mockOffline = '1'` ya da `lolcounters.mockPartial = '1'` yaz
   (otomatik kayıt hatası için `lolcounters.mockSaveFail = '1'`).
+  Küçük pencere: `http://localhost:1420/compact`; durumu
+  `lolcounters.mockChampSelect` seçer (`none`, `waiting`, `picking`, `locked`,
+  `blind`; ayrıntı `src/lib/mock.ts` başında).
 - **Canlı test (kullanıcı):** `npm run tauri dev`; dağıtım için
   `npm run tauri build`.
 
