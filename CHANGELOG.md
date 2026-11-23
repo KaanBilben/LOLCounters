@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## LC-010 — Yayın hazırlığı: lisans, Riot uyarısı, kullanıcı belgesi
+Başlangıç 2026-11-23 · Durum: geliştiriliyor, canlı test edilmedi · İlgili: LC-007
+
+> ### 2026-11-23 · Claude — Herkese açık yayın için eksikler
+> - **Ne:** MIT `LICENSE` ve `Cargo.toml` `license = "MIT"`; README'ye "İndir ve kur" (Releases, SmartScreen uyarısı), "Veri ve gizlilik" (u.gg resmi değil, LCU'dan yalnızca şampiyonlar ve kendi lane'in) ve "Lisans ve yasal not" (Riot'un istediği İngilizce metinler) bölümleri; Ayarlar paneline sürüm + Türkçe Riot uyarısı ile "Hakkında"; dış isteklerin User-Agent'ına repo adresi (`lib.rs` `USER_AGENT`)
+> - **Neden:** repo public olacak ve v0.1.0 GitHub Releases'te yayınlanacak; yayın denetimi Riot uyarı metni ile lisansın eksik olduğunu buldu
+> - **Dosyalar:** LICENSE, README.md, src-tauri/Cargo.toml, src-tauri/src/lib.rs, src/lib/SettingsMenu.svelte
+> - **Commit:** —
+
 ## LC-009 — Küçük pencere: şampiyon seçiminde her zaman üstte
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
 
