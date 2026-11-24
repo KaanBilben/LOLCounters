@@ -10,7 +10,7 @@
 //!   klasör bildirimi beklenir. Sürekli yoklama yoktur.
 //!
 //! Riot kuralı: oturumdan yalnızca hücre numarası, şampiyon, seçim niyeti, atanmış rol ve
-//! eylemler okunur; oyuncu adı, summonerId, puuid gibi alanlar hiç çözümlenmez.
+//! eylemler (seçim / ban) okunur; oyuncu adı, summonerId, puuid gibi alanlar hiç çözümlenmez.
 
 use crate::settings::Lane;
 use base64::Engine;
@@ -151,6 +151,13 @@ pub struct ChampSelectState {
     pub locked: bool,
     /// Görünen rakip şampiyonlar (0 olmayanlar), sırayla.
     pub enemies: Vec<i64>,
+    /// Benim ban eylemim var ve henüz tamamlanmadı (planlama ya da ban aşaması), kilitlemedim.
+    /// Kör seçim / ARAM gibi bansız modlarda hep `false`.
+    pub ban_phase: bool,
+    /// Tamamlanmış banlardaki şampiyonlar (iki takım).
+    pub bans: Vec<i64>,
+    /// Takım arkadaşlarımın seçtiği ya da gösterdiği şampiyonlar (yalnızca şampiyon numarası).
+    pub allies: Vec<i64>,
 }
 
 /// `null` gelirse varsayılan değer.
@@ -228,12 +235,34 @@ impl Session {
         } else {
             me.and_then(|m| nz(m.champion_pick_intent).or_else(|| nz(m.champion_id)))
         };
+        let actions = || self.actions.iter().flatten();
+        let ban_phase = !locked
+            && cell.is_some_and(|c| {
+                actions().any(|a| a.actor_cell_id == c && a.kind == "ban" && !a.completed)
+            });
+        let mut bans: Vec<i64> = Vec::new();
+        for a in actions().filter(|a| a.kind == "ban" && a.completed) {
+            if let Some(k) = nz(a.champion_id)
+                && !bans.contains(&k)
+            {
+                bans.push(k);
+            }
+        }
+        let allies = self
+            .my_team
+            .iter()
+            .filter(|m| Some(m.cell_id) != cell)
+            .filter_map(|m| nz(m.champion_id).or_else(|| nz(m.champion_pick_intent)))
+            .collect();
         ChampSelectState {
             my_lane: me.and_then(|m| lane_from_position(&m.assigned_position)),
             my_champion,
             my_intent,
             locked,
             enemies: self.their_team.iter().filter_map(|m| nz(m.champion_id)).collect(),
+            ban_phase,
+            bans,
+            allies,
         }
     }
 }

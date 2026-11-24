@@ -651,6 +651,37 @@ async fn champion_matchup(
     Ok(Recommendation { scored, build: c.data.overview.get(&lane).cloned(), error: c.error.clone() })
 }
 
+// --- LC-011: ban önerisi -------------------------------------------------------
+
+/// Ban aşamasında: gösterdiğim şampiyonun bu lane'deki en kötü eşleşmeleri (`scoring::worst_matchups`).
+/// `exclude`: banlanmış ve takımın şampiyonları; şampiyonun kendisi de atılır.
+/// Eşleşme verisi indirilemediyse hata döner; u.gg'de veri yoksa boş liste.
+#[tauri::command]
+async fn ban_suggestions(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane: Lane,
+    champion: i64,
+    exclude: Vec<i64>,
+) -> Result<Vec<Scored>, String> {
+    let patch = current_patch(&app, &state).await?;
+    let dir = cache_dir(&app)?;
+    let c = champion_data(&app, &dir, &patch, champion).await?;
+    let Some(rows) = c.data.matchups.get(&lane) else {
+        return match c.error {
+            Some(e) if c.data.matchups.is_empty() => Err(e),
+            _ => Ok(Vec::new()),
+        };
+    };
+    let cands: Vec<Candidate> = rows
+        .iter()
+        .map(|r| Candidate { champion: r.opponent, pool_index: 0, wins: r.wins, matches: r.matches })
+        .collect();
+    let mut exclude = exclude;
+    exclude.push(champion);
+    Ok(scoring::worst_matchups(&cands, &exclude))
+}
+
 /// Ana pencereyi öne getirir (küçük penceredeki düğme).
 #[tauri::command]
 fn open_main_window(app: AppHandle) {
@@ -703,6 +734,7 @@ pub fn run() {
             set_opponent,
             set_my_lane,
             champion_matchup,
+            ban_suggestions,
             open_main_window,
             close_compact,
             open_compact_preview
