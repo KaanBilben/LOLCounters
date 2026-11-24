@@ -11,6 +11,9 @@
 // and reload (default 'picking'). The pre-lock list ranks your Havuzum top-lane pool.
 // 'banning' (LC-011) shows the ban suggestions for the hovered champion (first top-lane pool
 // champion); 'banningNoIntent' is the same phase before a champion is hovered.
+// 'locked' (LC-014) shows the rune options: the matchup (gold) option is the 2nd one, except
+// against Ahri (103), who has none. Only the runes fail with 'lolcounters.mockRunesFail' = '1';
+// 'lolcounters.mockRunesEmpty' = '1' returns no options.
 
 import type {
   AutostartState,
@@ -550,7 +553,8 @@ const MOCK_RUNE_OPTIONS: RunePage[] = [
 
 export async function runeOptions(_lane: Lane, _champion: number, enemy: number | null): Promise<RuneOptions> {
   await delay(400);
-  if (mockFlag(OFFLINE_KEY)) throw 'mock: network unreachable';
+  if (mockFlag(OFFLINE_KEY) || mockFlag('lolcounters.mockRunesFail')) throw 'mock: network unreachable';
+  if (mockFlag('lolcounters.mockRunesEmpty')) return { options: [], gold: null, spells: [] };
   const gold = enemy !== null && enemy !== 103 ? 1 : null;
   return { options: MOCK_RUNE_OPTIONS, gold, spells: gold === null ? [4, 14] : [4, 12] };
 }

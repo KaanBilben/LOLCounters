@@ -6,7 +6,8 @@ League of Legends için hafif bir masaüstü counter öneri uygulaması (Windows
 2. Şampiyon seçimine girince ekranın sağ altında küçük bir pencere açılır:
    ban aşamasında oynamak için gösterdiğin şampiyonun en zor 3 rakibini
    banlaman için listeler; kilitlemeden önce havuzundaki şampiyonları rakibine karşı sıralar (tercih
-   sıran + eşleşme kazanma oranı), kilitleyince rün, büyü ve eşya önerir.
+   sıran + eşleşme kazanma oranı), kilitleyince en çok oynanan 3 rün sayfası arasında gezdirir
+   (rakibine göre önerilen altınla işaretli), büyü ve eşya önerir.
    Oyun başlayınca kendiliğinden kapanır.
 3. LoL istemcisi kapalıyken ana pencerede lane'ini ve rakibini elle de
    seçebilirsin.
@@ -98,7 +99,7 @@ Gerekenler: Rust, Node.js, WebView2 (Windows 11'de hazır gelir).
 | `src/lib/roles.ts`, `src/lib/LaneFilter.svelte` | Lane filtresi: şampiyon ızgarasında yalnızca seçili lane'in şampiyonları |
 | `src/lib/SettingsMenu.svelte` | Üst çubuktaki Ayarlar paneli (Windows açılınca başlat, Hakkında) |
 | `src/routes/+page.svelte` | Ana sayfa (Havuzum / Counter görünümleri) |
-| `src/routes/compact/+page.svelte` | Küçük pencerenin sayfası (rakipler, havuz sıralaması, kilitten sonra build) |
+| `src/routes/compact/+page.svelte` | Küçük pencerenin sayfası (rakipler, ban önerisi, havuz sıralaması, kilitten sonra rün seçenekleri ve build) |
 
 ## Durum ve sonraki adımlar
 
@@ -108,8 +109,8 @@ Gerekenler: Rust, Node.js, WebView2 (Windows 11'de hazır gelir).
 - Şampiyon seçimi LoL istemcisinden okunur (rol, kilit, görünen rakipler,
   rakip tahmini) ve küçük pencerede gösterilir; Normal Draft'ta canlı test
   edildi.
-- Rün ve eşya önerileri şampiyonun o lane'deki genel build'idir; rakibe özel
-  build ve matchup ipuçları henüz yok.
+- Eşya önerileri şampiyonun o lane'deki genel build'idir; rünlerde rakibe özel
+  sayfa (u.gg, en az 100 maç) altınla işaretlenir. Matchup ipuçları henüz yok.
 
 ## Lisans ve yasal not
 
