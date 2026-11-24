@@ -133,3 +133,14 @@ export interface ChampSelectState {
   /** True when `opponent` was chosen by the user (not guessed). */
   opponentChosen: boolean;
 }
+
+/**
+ * LC-013 rune_options (src-tauri/src/lib.rs RuneOptions): the rune pages offered after
+ * lock-in, most played first; `gold` is the option equal to u.gg's page for this matchup.
+ */
+export interface RuneOptions {
+  options: RunePage[];
+  gold: number | null;
+  /** The matchup's spells when `gold` is set, else the lane's general spells. */
+  spells: number[];
+}

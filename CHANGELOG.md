@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
+
+> ### 2026-11-24 · Claude — u.gg `builds` ve eşleşmeye özel overview
+> - **Ne:** `ugg.rs` `builds` dosyasından lane başına rün gruplarını (maça göre, her grubun en çok oynanan sayfası) ve `overview/.../matchups/{ben}_{rakip}` dosyasından eşleşme sayfasını + büyüleri okur (oradaki 6. eleman kayıp olduğu için okunmaz); `scoring::pick_rune_options` (ilk 3; ≥100 maçlı eşleşme sayfası aynı gruptaki seçeneğin, yoksa 3.'nün yerine geçer ve altın olur); yeni komut `rune_options` (bellek → disk `runes_{key}.json` / `mu_{key}_{rakip}.json` → ağ); `types.ts`, `api.ts`, sahte veri
+> - **Neden:** küçük pencerede 3 rün seçeneği ve eşleşmeye göre en iyisinin vurgusu; u.gg overview yalnızca tek sayfa veriyor
+> - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, docs/scoring.md
+> - **Commit:** —
+
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
 Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
 
