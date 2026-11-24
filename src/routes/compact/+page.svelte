@@ -6,6 +6,7 @@
     closeCompact,
     errorText,
     getChampSelectState,
+    importLoadout,
     loadStatic,
     onChampSelect,
     onPoolsChanged,
@@ -248,6 +249,48 @@
       ? build.coreItems.map((id) => data!.items[String(id)]).filter((x): x is Item => !!x)
       : []
   );
+
+  // --- LC-015: import the shown page and spells into the client (only on click) ---
+  type ImportState =
+    | { kind: 'idle' }
+    | { kind: 'busy' }
+    | { kind: 'confirm'; id: number; page: string }
+    | { kind: 'done'; spells: boolean }
+    | { kind: 'error'; message: string };
+  let importState = $state.raw<ImportState>({ kind: 'idle' });
+  let importSeq = 0;
+  // another page or another matchup: the button starts over (a late answer is dropped)
+  $effect(() => {
+    void runeKey;
+    void runeIdx;
+    importSeq++;
+    importState = { kind: 'idle' };
+  });
+  async function importPage(confirm: number | null) {
+    if (!page || importState.kind === 'busy') return;
+    const my = ++importSeq;
+    importState = { kind: 'busy' };
+    try {
+      const r = await importLoadout(page, spellKeys, confirm);
+      if (my !== importSeq) return;
+      importState =
+        r.kind === 'needsConfirm' ? { kind: 'confirm', id: r.id, page: r.page } : { kind: 'done', spells: r.spells };
+    } catch (e) {
+      if (my === importSeq) importState = { kind: 'error', message: errorText(e) };
+    }
+  }
+  const importTip = $derived.by(() => {
+    switch (importState.kind) {
+      case 'done':
+        return importState.spells
+          ? "\"LOLCounters\" rün sayfası seçildi, büyüler ayarlandı"
+          : "\"LOLCounters\" rün sayfası seçildi; büyüler ayarlanamadı";
+      case 'error':
+        return `Aktarılamadı: ${importState.message}`;
+      default:
+        return 'Bu rün sayfasını ve büyüleri LoL istemcisine aktar ("LOLCounters" sayfası)';
+    }
+  });
 
   // A Recommendation carries `error`; a ban suggestion (plain Scored) has none.
   type Row = Scored & { error?: string | null };
@@ -559,6 +602,14 @@
         </section>
 
         <div class="kit">
+          {#if importState.kind === 'confirm'}
+            {@const target = importState}
+            <div class="confirm" role="alertdialog" aria-label="Boş rün sayfası yok">
+              <span class="ctext">Boş sayfa yok · <b>{target.page}</b> üstüne yazılsın mı?</span>
+              <button type="button" class="btn btn-sm btn-primary" onclick={() => importPage(target.id)}>Yaz</button>
+              <button type="button" class="cancel" onclick={() => (importState = { kind: 'idle' })}>Vazgeç</button>
+            </div>
+          {:else}
           {#if spells.length}
             <div class="row" aria-label="Büyüler">
               {#each spells as s (s.key)}<GameIcon src={s.icon} name={s.name} size={26} />{/each}
@@ -578,6 +629,29 @@
                 <GameIcon src={it.icon} name={it.name} size={26} />
               {/each}
             </div>
+          {/if}
+          {#if page}
+            <button
+              type="button"
+              class="btn btn-sm btn-primary import"
+              class:done={importState.kind === 'done'}
+              class:failed={importState.kind === 'error'}
+              disabled={importState.kind === 'busy'}
+              aria-label={importTip}
+              use:tooltip={importTip}
+              onclick={() => importPage(null)}
+            >
+              {#if importState.kind === 'done'}
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>Aktarıldı
+              {:else if importState.kind === 'busy'}
+                Aktarılıyor…
+              {:else if importState.kind === 'error'}
+                Tekrar dene
+              {:else}
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" /></svg>İçe aktar
+              {/if}
+            </button>
+          {/if}
           {/if}
         </div>
       {/if}
@@ -1245,6 +1319,66 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+  /* import (LC-015) */
+  .import {
+    margin-left: auto;
+    gap: 5px;
+    height: 26px;
+    padding: 0 10px;
+    font-size: 10.5px;
+  }
+  .import svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .import.done {
+    border-color: color-mix(in srgb, var(--good) 60%, transparent);
+    background: color-mix(in srgb, var(--good) 12%, transparent);
+    color: var(--good);
+  }
+  .import.failed {
+    border-color: color-mix(in srgb, var(--hard) 60%, transparent);
+    background: color-mix(in srgb, var(--hard) 10%, transparent);
+    color: var(--hard);
+  }
+  .confirm {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+  }
+  .ctext {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+  .ctext b {
+    color: var(--gold-light);
+    font-weight: 600;
+  }
+  .confirm .btn {
+    height: 24px;
+    padding: 0 10px;
+  }
+  .cancel {
+    flex: none;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+  .cancel:hover {
+    color: var(--gold-light);
   }
   .ksep {
     width: 1px;

@@ -19,6 +19,7 @@ import type {
   AutostartState,
   BanSuggestion,
   Build,
+  ImportOutcome,
   Champion,
   Item,
   Lane,
@@ -557,4 +558,18 @@ export async function runeOptions(_lane: Lane, _champion: number, enemy: number 
   if (mockFlag('lolcounters.mockRunesEmpty')) return { options: [], gold: null, spells: [] };
   const gold = enemy !== null && enemy !== 103 ? 1 : null;
   return { options: MOCK_RUNE_OPTIONS, gold, spells: gold === null ? [4, 14] : [4, 12] };
+}
+
+// LC-015: 'lolcounters.mockImport' = 'full' (no free page: asks first) | 'fail' | 'noSpells'.
+export async function importLoadout(_page: RunePage, _spells: number[], confirm: number | null): Promise<ImportOutcome> {
+  await delay(500);
+  let mode: string | null = null;
+  try {
+    mode = localStorage.getItem('lolcounters.mockImport');
+  } catch {
+    /* storage blocked */
+  }
+  if (mode === 'fail') throw 'İstemci isteği reddetti (500)';
+  if (mode === 'full' && confirm === null) return { kind: 'needsConfirm', id: 3, page: 'Benim sayfam' };
+  return { kind: 'done', spells: mode !== 'noSpells' };
 }

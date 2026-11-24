@@ -7,7 +7,8 @@ League of Legends için hafif bir masaüstü counter öneri uygulaması (Windows
    ban aşamasında oynamak için gösterdiğin şampiyonun en zor 3 rakibini
    banlaman için listeler; kilitlemeden önce havuzundaki şampiyonları rakibine karşı sıralar (tercih
    sıran + eşleşme kazanma oranı), kilitleyince en çok oynanan 3 rün sayfası arasında gezdirir
-   (rakibine göre önerilen altınla işaretli), büyü ve eşya önerir.
+   (rakibine göre önerilen altınla işaretli), büyü ve eşya önerir; "İçe aktar" ile
+   seçtiğin rün sayfasını ve büyüleri istemciye yazar.
    Oyun başlayınca kendiliğinden kapanır.
 3. LoL istemcisi kapalıyken ana pencerede lane'ini ve rakibini elle de
    seçebilirsin.
@@ -37,7 +38,8 @@ Ayrıntılar (tepsi, Windows açılınca başlatma): aşağıda
 - **LoL istemcisi:** uygulama oyunun belleğini okumaz. Bilgisayarındaki LoL
   istemcisinin yerel arayüzünden yalnızca şampiyon seçimindeki şampiyonları ve
   senin lane'ini okur; oyuncu adlarını ya da başka oyuncuların istatistiklerini
-  hiç okumaz ve göstermez.
+  hiç okumaz ve göstermez. Yalnızca sen "İçe aktar"a basınca istemciye yazar:
+  "LOLCounters" adlı rün sayfası ve büyülerin (boş sayfa yoksa önce sorar).
 - Hiçbir veri bir sunucuya gönderilmez; havuzun ve ayarların yalnızca
   bilgisayarında durur.
 
@@ -89,7 +91,7 @@ Gerekenler: Rust, Node.js, WebView2 (Windows 11'de hazır gelir).
 | `src-tauri/src/lib.rs` | Tauri komutları ve uygulama durumu |
 | `src-tauri/src/ddragon.rs` | Riot Data Dragon: şampiyon, eşya, rün, büyü listeleri |
 | `src-tauri/src/ugg.rs` | u.gg: eşleşme, build ve lane (rol) verisi (resmi olmayan kaynak) |
-| `src-tauri/src/lcu.rs` | LoL istemcisi (LCU): şampiyon seçimini okur; LCU kodunun tek yeri |
+| `src-tauri/src/lcu.rs` | LoL istemcisi (LCU): şampiyon seçimini okur, istek üzerine rün sayfası ve büyü yazar; LCU kodunun tek yeri |
 | `src-tauri/src/compact.rs` | Küçük pencere: şampiyon seçiminde sağ altta, her zaman üstte |
 | `src-tauri/src/cache.rs` | Disk önbelleği (yama başına) |
 | `src-tauri/src/scoring.rs` | Öneri puanlaması |

@@ -808,6 +808,23 @@ async fn rune_options(
     Ok(RuneOptions { options, gold, spells })
 }
 
+/// LC-015: küçük penceredeki "İçe aktar". Sayfayı istemcinin sırasına dizer (`order_perks`) ve
+/// istemciye yazar; yer yoksa önce `needsConfirm` döner, onaylanan sayfa `confirm` ile gelir.
+#[tauri::command]
+async fn import_loadout(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    page: ugg::RunePage,
+    spells: Vec<i64>,
+    confirm: Option<i64>,
+) -> Result<lcu::ImportOutcome, String> {
+    let data = static_payload(&app, &state).await?;
+    let perks = ddragon::order_perks(&data.data.runes, page.primary_tree, page.secondary_tree, &page.perks, &page.shards)
+        .ok_or("Rün sayfası eksik; içe aktarılamadı")?;
+    let spells = <[i64; 2]>::try_from(spells).ok();
+    lcu::import_loadout(&app, page.primary_tree, page.secondary_tree, perks, spells, confirm).await
+}
+
 /// Ana pencereyi öne getirir (küçük penceredeki düğme).
 #[tauri::command]
 fn open_main_window(app: AppHandle) {
@@ -863,6 +880,7 @@ pub fn run() {
             champion_matchup,
             ban_suggestions,
             rune_options,
+            import_loadout,
             open_main_window,
             close_compact,
             open_compact_preview

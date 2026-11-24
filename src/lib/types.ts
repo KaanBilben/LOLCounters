@@ -144,3 +144,10 @@ export interface RuneOptions {
   /** The matchup's spells when `gold` is set, else the lane's general spells. */
   spells: number[];
 }
+
+/**
+ * LC-015 import_loadout (src-tauri/src/lcu.rs ImportOutcome): `done` — the page was written to
+ * the client's "LOLCounters" page and selected (`spells`: the spells were set too);
+ * `needsConfirm` — no free page slot, ask before overwriting page `page` (send `id` back).
+ */
+export type ImportOutcome = { kind: 'done'; spells: boolean } | { kind: 'needsConfirm'; id: number; page: string };

@@ -79,6 +79,29 @@ pub fn shard_name(id: i64) -> &'static str {
     }
 }
 
+/// LC-015: istemcinin beklediği 9'lu rün listesi — ana ağacın ana rünü ve 3 rünü, ikincil
+/// ağacın 2 rünü (her biri ağaçtaki sıraya göre), sonra 3 parça (saldırı, esnek, savunma).
+/// Sayfa eksikse (rün bilinmiyor, sayı tutmuyor, parça yok) `None`.
+pub fn order_perks(
+    runes: &HashMap<i64, Rune>,
+    primary: i64,
+    secondary: i64,
+    perks: &[i64],
+    shards: &[i64],
+) -> Option<[i64; 9]> {
+    let in_tree = |tree: i64| {
+        let mut v: Vec<&Rune> = perks.iter().filter_map(|id| runes.get(id)).filter(|r| r.tree == tree).collect();
+        v.sort_by_key(|r| r.slot);
+        v
+    };
+    let (main, sub) = (in_tree(primary), in_tree(secondary));
+    if main.len() != 4 || main[0].slot != 0 || sub.len() != 2 || shards.len() != 3 {
+        return None;
+    }
+    let ids: Vec<i64> = main.iter().chain(&sub).map(|r| r.id).chain(shards.iter().copied()).collect();
+    ids.try_into().ok()
+}
+
 async fn get_json(client: &reqwest::Client, url: &str) -> Result<Value, String> {
     send_json(client.get(url)).await
 }

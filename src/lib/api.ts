@@ -151,3 +151,11 @@ export async function runeOptions(lane: Lane, champion: number, enemy: number | 
   if (useMock) return (await mock()).runeOptions(lane, champion, enemy);
   return invoke<RuneOptions>('rune_options', { lane, champion, enemy });
 }
+
+import type { ImportOutcome, RunePage } from './types';
+
+/** Writes `page` (and `spells`, during champ select) to the client; only on the user's click. */
+export async function importLoadout(page: RunePage, spells: number[], confirm: number | null): Promise<ImportOutcome> {
+  if (useMock) return (await mock()).importLoadout(page, spells, confirm);
+  return invoke<ImportOutcome>('import_loadout', { page, spells, confirm });
+}

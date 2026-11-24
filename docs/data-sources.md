@@ -183,3 +183,35 @@ Atanmış rol yoksa (pozisyonsuz seçim) kullanıcının seçtiği lane kullanı
 (`set_my_lane`). Tahmin yalnızca görünen rakipler ya da lane değişince, olay
 döngüsünü bekletmeden ayrı bir görevde hesaplanır. Lane verisi alınamazsa o
 seçimde yeniden denenmez ve tahmin yapılmaz; rakip elle seçilir.
+
+### İçe aktarma: rün sayfası ve büyüler (LC-015)
+
+Yalnızca kullanıcı küçük pencerede "İçe aktar"a basınca istemciye yazılır; hiçbir
+şey seçilmez, kilitlenmez, banlanmaz. Uç noktalar topluluk belgelerinden alındı,
+gerçek istemcide henüz denenmedi (bkz. TODO.md).
+
+| İstek | Ne için |
+|---|---|
+| `GET /lol-perks/v1/pages` | Kendi sayfalarım: yalnızca `id`, `name`, `isEditable`, `current` okunur |
+| `GET /lol-perks/v1/inventory` | `canAddCustomPage`: boş sayfa yeri var mı (okunamazsa yok sayılır) |
+| `PUT /lol-perks/v1/pages/{id}` | Sayfanın üstüne yazma; reddedilirse `DELETE` + `POST` |
+| `POST /lol-perks/v1/pages` | Yeni sayfa |
+| `PUT /lol-perks/v1/currentpage` (gövde: id) | Sayfayı seçili yapma |
+| `GET /lol-champ-select/v1/session` | Yalnızca kendi hücremin `spell1Id`, `spell2Id`'si (tuş yerleşimi) |
+| `PATCH /lol-champ-select/v1/session/my-selection` | `{spell1Id, spell2Id}` (1 = D, 2 = F); yalnızca seçim sürerken |
+
+Sayfa gövdesi: `{name: "LOLCounters", primaryStyleId, subStyleId, selectedPerkIds, current: true}`.
+`selectedPerkIds` 9 sayı: ana ağacın ana rünü ve 3 rünü, ikincil ağacın 2 rünü (her biri
+Data Dragon'daki sıraya göre; u.gg sayıca sıralı verdiği için `ddragon::order_perks`
+yeniden dizer), sonra 3 parça (saldırı, esnek, savunma).
+
+Nereye yazılır (`lcu::import_target`):
+
+1. Adı "LOLCounters" olan düzenlenebilir sayfa varsa sormadan onun üstüne.
+2. Yoksa ve yer varsa yeni sayfa.
+3. Yer yoksa seçili (o düzenlenemiyorsa ilk) düzenlenebilir sayfa için pencerede
+   onay istenir; onaydan sonra o sayfa hâlâ aynıysa üstüne yazılır ve adı
+   "LOLCounters" olur (sonraki aktarmada yeniden sorulmaz).
+
+Büyüler: şu an D ya da F'de olan büyü aynı tuşta kalır (ör. Flash), yoksa u.gg sırası
+(`lcu::order_spells`).
