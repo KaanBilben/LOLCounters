@@ -42,7 +42,8 @@ Yalnızca açık işler. Biten iş buradan silinir; ne yapıldığı
   Geçince: `src-tauri/tests/run_verisi.rs`, `run_import.rs` ve `run_kartlari.rs` silinir,
   CHANGELOG LC-013/014/015 durumu "canlı test edildi" yapılır.
 
-- [ ] **LC-016/017 Bot lane sinerjisi** — gerçek istemcide denenmedi.
+- [ ] **LC-016/017 Bot lane sinerjisi** — gerçek istemcide denenmedi (`main`'e
+  canlı testsiz girdi).
   `npm run tauri dev` → Dereceli ya da Normal Seçim'de ADC ya da support al:
   - partnerin şampiyon gösterince başlıkta "Counter | Sinerji" sekmeleri çıkıyor;
     "Sinerji"de 5 şampiyon, başlıkta "{partner} ile (gösteriyor)", partner kilitleyince
