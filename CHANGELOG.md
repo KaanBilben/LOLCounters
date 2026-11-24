@@ -8,7 +8,7 @@ Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) �
 > - **Neden:** ban ekranında oynayacağın şampiyonun counter'larını banlayabilmek
 > - **Etkilenen:** LC-008 (`ChampSelectState`'e `banPhase`, `bans`, `allies`), LC-009 (küçük pencerenin ban görünümü)
 > - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/scoring.md, docs/data-sources.md, README.md
-> - **Commit:** —
+> - **Commit:** 0f48857
 
 ## LC-010 — Yayın hazırlığı: lisans, Riot uyarısı, kullanıcı belgesi
 Başlangıç 2026-11-23 · Durum: canlı test edildi · İlgili: LC-007
