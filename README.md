@@ -78,6 +78,7 @@ Gerekenler: Rust, Node.js, WebView2 (Windows 11'de hazır gelir).
 | [docs/data-sources.md](docs/data-sources.md) | Veri nereden ve hangi biçimde geliyor (Data Dragon, u.gg, LoL istemcisi) |
 | [docs/scoring.md](docs/scoring.md) | Önerilerin nasıl sıralandığı |
 | [CHANGELOG.md](CHANGELOG.md) | Yapılan işler (thread biçiminde) |
+| [TODO.md](TODO.md) | Açık işler (ör. canlı test bekleyenler) |
 | [LICENSE](LICENSE) | Kodun lisansı (MIT) |
 
 ## Kod yapısı

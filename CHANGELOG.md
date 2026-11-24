@@ -1,7 +1,7 @@
 # CHANGELOG
 
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
-Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-008, LC-009
+Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
 
 > ### 2026-11-24 · Claude — Ban aşamasında en kötü 3 eşleşme
 > - **Ne:** `lcu.rs` oturumdan ban aşamasını (benim tamamlanmamış `ban` eylemim, kilit yok), tamamlanmış banları ve takım arkadaşlarının şampiyonlarını okur; `scoring::worst_matchups` (30+ maç, düzeltilmiş orana göre en kötü 3); yeni komut `ban_suggestions`. Küçük pencere ban aşamasında "Ban önerisi · X için" başlığıyla 3 satır gösterir (ilk satır "En tehlikeli"); şampiyon gösterilmediyse yönlendirme mesajı, hata durumunda "Tekrar dene". Sahte veri: `banning`, `banningNoIntent`
