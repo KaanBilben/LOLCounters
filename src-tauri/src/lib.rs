@@ -295,6 +295,9 @@ pub(crate) fn recheck_static(app: &AppHandle) {
 fn forget_empty(app: &AppHandle) {
     lock(&app.state::<AppState>().champs).retain(|_, d| !d.matchups.is_empty() || !d.overview.is_empty());
     lock(&app.state::<RolesState>().games).retain(|_, g| !g.is_empty());
+    let runes = app.state::<RunesState>();
+    lock(&runes.options).retain(|_, d| !d.is_empty());
+    lock(&runes.matchups).retain(|_, d| !d.is_empty());
 }
 
 async fn current_patch(app: &AppHandle, state: &AppState) -> Result<UggPatch, String> {
@@ -682,6 +685,129 @@ async fn ban_suggestions(
     Ok(scoring::worst_matchups(&cands, &exclude))
 }
 
+// --- LC-013: rün seçenekleri ---------------------------------------------------
+
+/// Bellekteki lane başına veri: anahtar → lane → değer.
+type LaneCache<K, V> = Mutex<HashMap<K, Arc<HashMap<Lane, V>>>>;
+
+/// Rün seçenekleri ve eşleşme sayfaları (bellek; disk yerleşimi `cache.rs` başında).
+#[derive(Default)]
+struct RunesState {
+    /// (yama, şampiyon) → lane → seçenekler
+    options: LaneCache<ChampKey, Vec<ugg::RunePage>>,
+    /// (yama, şampiyon, rakip) → lane → eşleşme sayfası
+    matchups: LaneCache<(String, i64, i64), ugg::MatchupPage>,
+}
+
+/// Lane başına veri: bellek → disk → ağ (bir kez). Boş sonuç (u.gg'de dosya yok) diske yazılmaz,
+/// yalnızca bellekte tutulur; `recheck_static` tetiklenince atılır (`forget_empty`).
+async fn lane_data<K, V, Fut>(
+    mem: &LaneCache<K, V>,
+    key: K,
+    path: PathBuf,
+    fetch: impl FnOnce() -> Fut,
+) -> Result<Arc<HashMap<Lane, V>>, String>
+where
+    K: Eq + std::hash::Hash,
+    V: Serialize + serde::de::DeserializeOwned,
+    Fut: std::future::Future<Output = Result<HashMap<Lane, V>, String>>,
+{
+    let cached = lock(mem).get(&key).cloned();
+    if let Some(d) = cached {
+        return Ok(d);
+    }
+    let data = match cache::read::<HashMap<Lane, V>>(&path) {
+        Some(d) => d,
+        None => {
+            let d = fetch().await?;
+            if !d.is_empty() {
+                let _ = cache::write(&path, &d);
+            }
+            d
+        }
+    };
+    let data = Arc::new(data);
+    lock(mem).insert(key, data.clone());
+    Ok(data)
+}
+
+/// Küçük pencerenin rün görünümü (LC-013): seçenekler, altın vurgulu seçeneğin sırası ve büyüler.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuneOptions {
+    pub options: Vec<ugg::RunePage>,
+    /// Eşleşmeye özel sayfa olan seçenek (`scoring::pick_rune_options`); yoksa `None`.
+    pub gold: Option<usize>,
+    /// Altın seçenek varsa eşleşmenin büyüleri, yoksa lane'in genel büyüleri.
+    pub spells: Vec<i64>,
+}
+
+/// Kilitledikten sonra: şampiyonumun bu lane'deki rün seçenekleri (`builds`) ve rakip biliniyorsa
+/// eşleşmeye özel sayfası. Parçalar ve büyüler overview'dan gelir (`builds`'te yok).
+/// Eşleşme sayfası alınamazsa vurgusuz devam edilir; seçenek hiç yoksa hata döner.
+#[tauri::command]
+async fn rune_options(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane: Lane,
+    champion: i64,
+    enemy: Option<i64>,
+) -> Result<RuneOptions, String> {
+    let patch = current_patch(&app, &state).await?;
+    let dir = cache_dir(&app)?;
+    let patch_dir = dir.join("ugg").join(&patch.patch);
+    let runes = app.state::<RunesState>();
+    let client = &state.client;
+    let (general, champ, mu) = futures::join!(
+        lane_data(
+            &runes.options,
+            (patch.patch.clone(), champion),
+            patch_dir.join(format!("runes_{champion}.json")),
+            || ugg::fetch_rune_options(client, &patch, champion),
+        ),
+        champion_data(&app, &dir, &patch, champion),
+        async {
+            let Some(e) = enemy else { return Ok(None) };
+            lane_data(
+                &runes.matchups,
+                (patch.patch.clone(), champion, e),
+                patch_dir.join(format!("mu_{champion}_{e}.json")),
+                || ugg::fetch_matchup_pages(client, &patch, champion, e),
+            )
+            .await
+            .map(Some)
+        },
+    );
+    let overview = champ.ok().and_then(|c| c.data.overview.get(&lane).cloned());
+    let shards = overview.as_ref().map(|b| b.runes.shards.clone()).unwrap_or_default();
+    let mut list: Vec<ugg::RunePage> = match &general {
+        Ok(g) => g.get(&lane).cloned().unwrap_or_default(),
+        Err(_) => Vec::new(),
+    };
+    for p in &mut list {
+        p.shards.clone_from(&shards);
+    }
+    // `builds` yoksa ya da alınamadıysa overview'un tek sayfası.
+    if list.is_empty()
+        && let Some(b) = &overview
+    {
+        list.push(b.runes.clone());
+    }
+    if list.is_empty() {
+        return match general {
+            Err(e) => Err(e),
+            Ok(_) => Ok(RuneOptions { options: Vec::new(), gold: None, spells: Vec::new() }),
+        };
+    }
+    let mu_page = mu.ok().flatten().and_then(|m| m.get(&lane).cloned());
+    let (options, gold) = scoring::pick_rune_options(&list, mu_page.as_ref().map(|m| &m.runes));
+    let spells = match (gold, &mu_page) {
+        (Some(_), Some(m)) if m.spells.len() == 2 => m.spells.clone(),
+        _ => overview.map(|b| b.spells).unwrap_or_default(),
+    };
+    Ok(RuneOptions { options, gold, spells })
+}
+
 /// Ana pencereyi öne getirir (küçük penceredeki düğme).
 #[tauri::command]
 fn open_main_window(app: AppHandle) {
@@ -714,6 +840,7 @@ pub fn run() {
         ))
         .manage(AppState::new())
         .manage(RolesState::default())
+        .manage(RunesState::default())
         .manage(lcu::LcuState::default())
         // Tek setup: tepsi + pencere (LC-007), sonra LCU izleyicisi (LC-008).
         .setup(|app| {
@@ -735,6 +862,7 @@ pub fn run() {
             set_my_lane,
             champion_matchup,
             ban_suggestions,
+            rune_options,
             open_main_window,
             close_compact,
             open_compact_preview

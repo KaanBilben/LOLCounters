@@ -141,3 +141,13 @@ export async function openCompactPreview(): Promise<void> {
   if (useMock) return (await mock()).openCompactPreview();
   return invoke<void>('open_compact_preview');
 }
+
+// --- LC-013: rune options -----------------------------------------------------
+
+import type { RuneOptions } from './types';
+
+/** Rune page options of `champion` in `lane` (most played first), with the matchup page vs `enemy`. */
+export async function runeOptions(lane: Lane, champion: number, enemy: number | null): Promise<RuneOptions> {
+  if (useMock) return (await mock()).runeOptions(lane, champion, enemy);
+  return invoke<RuneOptions>('rune_options', { lane, champion, enemy });
+}

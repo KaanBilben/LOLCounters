@@ -77,6 +77,9 @@ pub struct UggPatch {
     /// Lane filtresi dosyasının sürümü; eski `patch.json` kayıtlarında yoksa varsayılan.
     #[serde(default = "default_api_version")]
     pub ranking_version: String,
+    /// Rün seçenekleri (`builds`) dosyasının sürümü (LC-013); eski kayıtlarda yoksa varsayılan.
+    #[serde(default = "default_api_version")]
+    pub builds_version: String,
 }
 
 fn default_api_version() -> String {
@@ -163,9 +166,8 @@ fn top_options(slot: Option<&Value>) -> Vec<i64> {
     opts.into_iter().take(2).map(|(id, _)| id).collect()
 }
 
-fn parse_build(data: &Value) -> Option<Build> {
-    let a = data.as_array()?;
-
+/// overview verisinin 0. (rün sayfası) ve 8. (parçalar) elemanı.
+fn parse_rune_page(a: &[Value]) -> Option<RunePage> {
     // 0: [maç, galibiyet, ana ağaç, ikincil ağaç, [rünler]]
     let r = a.first()?.as_array()?;
     let primary_tree = as_id(r.get(2)?)?;
@@ -176,14 +178,19 @@ fn parse_build(data: &Value) -> Option<Build> {
     }
     // 8: [maç, galibiyet, ["5005", ...]]
     let shards = id_list(a.get(8).and_then(|s| s.get(2)));
-    let runes = RunePage {
+    Some(RunePage {
         primary_tree,
         secondary_tree,
         perks,
         shards,
         matches: r.first().and_then(as_u32).unwrap_or(0),
         wins: r.get(1).and_then(as_u32).unwrap_or(0),
-    };
+    })
+}
+
+fn parse_build(data: &Value) -> Option<Build> {
+    let a = data.as_array()?;
+    let runes = parse_rune_page(a)?;
 
     // 1/2/3: [maç, galibiyet, [id'ler]]
     let list_at = |i: usize| id_list(a.get(i).and_then(|x| x.get(2)));
@@ -223,6 +230,71 @@ pub fn parse_overview(v: &Value) -> HashMap<Lane, Build> {
     per_lane(v, parse_build)
 }
 
+// ---------- Rün seçenekleri (LC-013) ----------
+
+/// Eşleşmeye özel sayfa: `overview/.../matchups/{ben}_{rakip}` dosyası. Biçim overview ile aynıdır
+/// ama 6. eleman orada [benim kayıplarım, maç] olduğu için okunmaz; yalnızca rün sayfası
+/// (0, 8) ve büyüler (1) alınır.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchupPage {
+    pub runes: RunePage,
+    pub spells: Vec<i64>,
+}
+
+fn parse_matchup_page(data: &Value) -> Option<MatchupPage> {
+    let a = data.as_array()?;
+    Some(MatchupPage {
+        runes: parse_rune_page(a)?,
+        spells: id_list(a.get(1).and_then(|x| x.get(2))),
+    })
+}
+
+pub fn parse_matchup_pages(v: &Value) -> HashMap<Lane, MatchupPage> {
+    per_lane(v, parse_matchup_page)
+}
+
+/// `builds` dosyasında bir lane: `[grup, ...]`, grup = `[ana rün, ikincil ağaç, galibiyet, maç,
+/// ana ağaç, [sayfa, ...]]`, sayfa = `[ana ağaç, ikincil ağaç, [6 rün], galibiyet, maç]`.
+/// Gruplar maça göre büyükten küçüğe (u.gg sırasız verir); her grubun en çok oynanan sayfası.
+/// Bu dosyada parça yoktur (`shards` boş; overview'dan doldurulur).
+fn parse_rune_groups(groups: &Value) -> Option<Vec<RunePage>> {
+    let mut out: Vec<(u32, RunePage)> = groups
+        .as_array()?
+        .iter()
+        .filter_map(|g| {
+            let g = g.as_array()?;
+            let group_matches = as_u32(g.get(3)?)?;
+            let best = g
+                .get(5)?
+                .as_array()?
+                .iter()
+                .filter_map(|p| {
+                    let p = p.as_array()?;
+                    let perks = id_list(p.get(2));
+                    (!perks.is_empty()).then_some(())?;
+                    Some(RunePage {
+                        primary_tree: as_id(p.first()?)?,
+                        secondary_tree: as_id(p.get(1)?)?,
+                        perks,
+                        shards: Vec::new(),
+                        wins: as_u32(p.get(3)?)?,
+                        matches: as_u32(p.get(4)?)?,
+                    })
+                })
+                .max_by_key(|p| p.matches)?;
+            Some((group_matches, best))
+        })
+        .collect();
+    out.sort_by_key(|(m, _)| std::cmp::Reverse(*m));
+    (!out.is_empty()).then(|| out.into_iter().map(|(_, p)| p).collect())
+}
+
+/// Lane başına rün seçenekleri, en çok oynanandan başlayarak (`builds` dosyası).
+pub fn parse_rune_options(v: &Value) -> HashMap<Lane, Vec<RunePage>> {
+    per_lane(v, parse_rune_groups)
+}
+
 // ---------- Yama ----------
 
 /// "16.23.1" → "16_23".
@@ -250,6 +322,7 @@ pub fn fallback_patch(ddragon_version: &str) -> UggPatch {
         matchups_version: DEFAULT_API_VERSION.to_string(),
         overview_version: DEFAULT_API_VERSION.to_string(),
         ranking_version: DEFAULT_API_VERSION.to_string(),
+        builds_version: DEFAULT_API_VERSION.to_string(),
     }
 }
 
@@ -291,6 +364,7 @@ fn choose_patch(versions: &Value, ddragon_version: &str) -> Result<UggPatch, Str
         matchups_version: ver("matchups"),
         overview_version: ver("overview"),
         ranking_version: ver("champion_ranking"),
+        builds_version: ver("builds"),
         patch,
     })
 }
@@ -406,6 +480,35 @@ pub async fn fetch_overview(
         p.patch, p.overview_version
     );
     Ok(parse_overview(&get_world(client, &url).await?))
+}
+
+/// Lane başına rün seçenekleri (`builds`, ~3 MB; yalnızca dünya verisi okunur).
+/// u.gg'de bu şampiyonun dosyası yoksa (4xx) boş harita döner.
+pub async fn fetch_rune_options(
+    client: &reqwest::Client,
+    p: &UggPatch,
+    champion_key: i64,
+) -> Result<HashMap<Lane, Vec<RunePage>>, String> {
+    let url = format!(
+        "{STATS_BASE}/builds/{}/{QUEUE}/{champion_key}/{}.json",
+        p.patch, p.builds_version
+    );
+    Ok(parse_rune_options(&get_world(client, &url).await?))
+}
+
+/// Benim şampiyonumun bir rakibe karşı önerilen sayfası (lane başına). Eşleşme u.gg'de yoksa
+/// (4xx) boş harita döner.
+pub async fn fetch_matchup_pages(
+    client: &reqwest::Client,
+    p: &UggPatch,
+    champion_key: i64,
+    opponent_key: i64,
+) -> Result<HashMap<Lane, MatchupPage>, String> {
+    let url = format!(
+        "{STATS_BASE}/overview/{}/{QUEUE}/matchups/{champion_key}_{opponent_key}/{}.json",
+        p.patch, p.overview_version
+    );
+    Ok(parse_matchup_pages(&get_world(client, &url).await?))
 }
 
 // ---------- Lane filtresi (champion_ranking) ----------

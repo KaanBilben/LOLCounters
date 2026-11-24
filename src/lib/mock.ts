@@ -22,6 +22,8 @@ import type {
   Recommendation,
   Roles,
   Rune,
+  RuneOptions,
+  RunePage,
   Settings,
   Spell,
   StaticPayload,
@@ -534,4 +536,21 @@ export async function closeCompact(): Promise<void> {
 
 export async function openCompactPreview(): Promise<void> {
   window.open('/compact', 'lolcounters-compact', 'popup,width=380,height=260');
+}
+
+// --- LC-013: rune options (mirrors scoring::pick_rune_options) ---------------
+// Precision/Resolve, Resolve/Precision, Precision/Inspiration; vs an enemy the second
+// option is the matchup page (gold), except Ahri (103): no highlight.
+
+const MOCK_RUNE_OPTIONS: RunePage[] = [
+  { primaryTree: 8000, secondaryTree: 8400, perks: [8010, 8242, 8299, 8473, 9104, 9111], shards: [5005, 5008, 5001], matches: 21095, wins: 10741 },
+  { primaryTree: 8400, secondaryTree: 8000, perks: [8437, 8444, 8446, 8451, 9104, 9111], shards: [5005, 5008, 5001], matches: 16408, wins: 8513 },
+  { primaryTree: 8000, secondaryTree: 8300, perks: [8010, 8299, 8345, 8410, 9104, 9111], shards: [5005, 5008, 5001], matches: 9472, wins: 4717 }
+];
+
+export async function runeOptions(_lane: Lane, _champion: number, enemy: number | null): Promise<RuneOptions> {
+  await delay(400);
+  if (mockFlag(OFFLINE_KEY)) throw 'mock: network unreachable';
+  const gold = enemy !== null && enemy !== 103 ? 1 : null;
+  return { options: MOCK_RUNE_OPTIONS, gold, spells: gold === null ? [4, 14] : [4, 12] };
 }

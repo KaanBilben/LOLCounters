@@ -34,6 +34,8 @@ projesinden alındı ve 2026-11-22'de canlı veriyle doğrulandı. Kod:
 | Eşleşmeler | `https://stats2.u.gg/lol/1.5/matchups/{yama}/ranked_solo_5x5/{şampiyon key}/{sürüm}.json` |
 | Build (genel bakış) | `https://stats2.u.gg/lol/1.5/overview/{yama}/ranked_solo_5x5/{şampiyon key}/{sürüm}.json` |
 | Lane filtresi (şampiyon sıralaması) | `https://stats2.u.gg/lol/1.5/champion_ranking/world/{yama}/ranked_solo_5x5/{tier}/{sürüm}.json` |
+| Rün seçenekleri (LC-013) | `https://stats2.u.gg/lol/1.5/builds/{yama}/ranked_solo_5x5/{şampiyon key}/{sürüm}.json` |
+| Eşleşmeye özel sayfa (LC-013) | `https://stats2.u.gg/lol/1.5/overview/{yama}/ranked_solo_5x5/matchups/{benim key}_{rakip key}/{sürüm}.json` |
 
 - `{yama}`: Data Dragon sürümünün ilk iki parçası, `_` ile: `16.23.1` → `16_23`.
   u.gg o yamayı henüz listelemiyorsa listedeki en yeni yama kullanılır.
@@ -69,6 +71,30 @@ Build dizisi (sıra numarasıyla):
 | 5 | 4./5./6. eşya seçenekleri: her biri `[id, galibiyet, maç]` listesi |
 | 6 | Toplam: `[galibiyet, maç]` |
 | 8 | Parçacıklar: `[maç, galibiyet, ["5005", ...]]` |
+
+Rün id listesi slot sırasında değildir: önce ana rün, sonra diğer 5 rün sayıya
+göre sıralı (ana ve ikincil ağaç karışık). Arayüz ve istemciye aktarma, Data
+Dragon'daki ağaç ve slot bilgisiyle yeniden dizer.
+
+### Rün seçenekleri ve eşleşme sayfası (LC-013)
+
+2026-11-24'te canlı veriyle doğrulandı (16.23; Darius, Ahri).
+
+- **`builds`** (`{sürüm}` = yama haritasındaki `builds`, yoksa `1.5.0`; ham dosya
+  ~3,3 MB, yalnızca dünya verisi okunur): `bölge → rank → rol → [7 eleman]`
+  (zaman damgası sarmalı yok). 0. eleman rün grupları:
+  `[ana rün, ikincil ağaç, galibiyet, maç, ana ağaç, [sayfa, ...]]`, sayfa
+  `[ana ağaç, ikincil ağaç, [6 rün], galibiyet, maç]`. Gruplar ve sayfalar
+  sırasız gelir. Kullanılan: maça göre en büyük gruplar, her grubun en çok
+  oynanan sayfası. Bu dosyada parça yoktur; parçalar ve büyüler overview'dan
+  (8. ve 1. eleman) gelir. Diskte `ugg/{yama}/runes_{key}.json`.
+- **Eşleşmeye özel overview** (`matchups/{ben}_{rakip}`, `{sürüm}` = `overview`):
+  normal overview ile aynı 13 elemanlı biçim, tek rün sayfası. Dikkat: 6.
+  eleman burada `[benim kayıplarım, maç]`dır, `[galibiyet, maç]` değil; bu
+  yüzden yalnızca 0 (rün sayfası), 1 (büyüler) ve 8 (parçalar) okunur. Eşleşme
+  u.gg'de yoksa 403 döner (veri yok sayılır). Yalnızca rakip belli olunca
+  indirilir; diskte `ugg/{yama}/mu_{key}_{rakip}.json`.
+- Seçim ve vurgu kuralı: [scoring.md](scoring.md#rün-seçenekleri).
 
 ## Lane filtresi (u.gg champion_ranking)
 

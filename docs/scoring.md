@@ -37,3 +37,18 @@ verisinden en kötü 3 eşleşme gösterilir (`worst_matchups`,
   de listeye girmez.
 - Düzeltilmiş orana göre küçükten büyüğe sıralanır (eşitlikte çok maçlı önce).
   Tercih bonusu burada kullanılmaz.
+
+## Rün seçenekleri
+
+Kilitledikten sonra küçük pencerede şampiyonunun o lane'deki rün sayfaları
+gösterilir (`pick_rune_options`, `RUNE_OPTIONS = 3`). Veri:
+[data-sources.md](data-sources.md#rün-seçenekleri-ve-eşleşme-sayfası-lc-013).
+
+- **Seçenekler:** ana rün + ikincil ağaç grupları maç sayısına göre; her grubun
+  en çok oynanan tam sayfası. Oran ve maç sayısı o sayfanındır.
+- **Altın vurgu:** u.gg her rakip için tek bir önerilen sayfa verir. Bu sayfa
+  en az `MATCHUP_PAGE_MIN_GAMES = 100` maçlıysa vurgulanır: aynı ana rün +
+  ikincil ağaçtaki seçeneğin yerine geçer; böyle bir seçenek yoksa 3.
+  seçeneğin yerine. 100 maçtan azsa vurgu yoktur, seçenekler değişmez.
+- **Büyüler:** altın seçenek varsa eşleşmenin büyüleri, yoksa lane'in genel
+  büyüleri.
