@@ -8,7 +8,9 @@ League of Legends için hafif bir masaüstü counter öneri uygulaması (Windows
    banlaman için listeler; kilitlemeden önce havuzundaki şampiyonları rakibine karşı sıralar (tercih
    sıran + eşleşme kazanma oranı), kilitleyince en çok oynanan 3 rün sayfasını yan yana
    kartlarla gösterir ("Önerilen" ve "Eşleşmeye özel" sarı etiketli), büyü ve eşya önerir; "İçe aktar" ile
-   seçtiğin rün sayfasını ve büyüleri istemciye yazar.
+   seçtiğin rün sayfasını ve büyüleri istemciye yazar. ADC ya da support
+   oynarken bot lane partnerin şampiyonunu gösterince "Sinerji" sekmesi onunla
+   iyi giden şampiyonları listeler; havuzundaki iyi sinerjiler sarı etiketle işaretlenir.
    Oyun başlayınca kendiliğinden kapanır.
 3. LoL istemcisi kapalıyken ana pencerede lane'ini ve rakibini elle de
    seçebilirsin.
@@ -101,7 +103,7 @@ Gerekenler: Rust, Node.js, WebView2 (Windows 11'de hazır gelir).
 | `src/lib/roles.ts`, `src/lib/LaneFilter.svelte` | Lane filtresi: şampiyon ızgarasında yalnızca seçili lane'in şampiyonları |
 | `src/lib/SettingsMenu.svelte` | Üst çubuktaki Ayarlar paneli (Windows açılınca başlat, Hakkında) |
 | `src/routes/+page.svelte` | Ana sayfa (Havuzum / Counter görünümleri) |
-| `src/routes/compact/+page.svelte` | Küçük pencerenin sayfası (rakipler, ban önerisi, havuz sıralaması, kilitten sonra rün seçenekleri ve build) |
+| `src/routes/compact/+page.svelte` | Küçük pencerenin sayfası (rakipler, ban önerisi, havuz sıralaması ve bot lane sinerjisi, kilitten sonra rün seçenekleri ve build) |
 
 ## Durum ve sonraki adımlar
 
