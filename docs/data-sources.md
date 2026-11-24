@@ -150,6 +150,14 @@ yoklama yoktur. Lockfile görününce bağlantı en çok 4 kez denenir (0/1/2/4 
 | `actions[][].actorCellId`, `championId`, `completed`, `type` | Kilit: benim tamamlanmış `pick` eylemim. Ban aşaması: benim tamamlanmamış `ban` eylemim varsa (kilit yokken) ban önerisi gösterilir; tamamlanmış `ban` eylemlerindeki şampiyonlar öneriden çıkarılır |
 | aşama (`gameflow-phase`) | `ChampSelect` başlangıç; başka her aşama ya da oturum `Delete` bitiş |
 
+**Oturum ne zaman kabul edilir** (`lcu.rs` `session_action`): aşama `ChampSelect`
+ya da henüz bilinmiyorsa uygulanır. `Lobby`, `Matchmaking`, `ReadyCheck`
+sırasında gelen oturum saklanır ve `ChampSelect` gelince uygulanır; istemci
+oturumu aşamadan önce gönderirse küçük pencere yine lane'iyle açılır. Oyun
+başladıktan sonra (`GameStart`, `InProgress` vb.) gelen oturum yok sayılır.
+Geliştirme sürümü (`npm run tauri dev`) gelen her olayı sırasıyla terminale
+yazar (`[lcu … ms] <eventType> <uri>`).
+
 Rakibimin hangi lane'de olduğu istemcide yok; şampiyonların rol paylarıyla
 ([lane filtresinin verisi](#lane-filtresi-ugg-champion_ranking), aynı önbellek)
 tahmin edilir (en olası bire bir eşleştirme) ve kullanıcı tıklayarak düzeltebilir.

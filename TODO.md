@@ -14,3 +14,14 @@ Yalnızca açık işler. Biten iş buradan silinir; ne yapıldığı
 
   Geçince: `src-tauri/tests/ban_onerisi.rs` silinir, CHANGELOG LC-011 durumu
   "canlı test edildi" yapılır.
+
+- [ ] **LC-012 Küçük pencerede lane gecikmesi** — gerçek istemcide denenmedi.
+  `npm run tauri dev` → sıraya gir, şampiyon seçimine geç:
+  - küçük pencere açılır açılmaz başlıkta lane etiketi var, "Lane'in belli
+    değil" ekranı hiç görünmüyor;
+  - terminaldeki `[lcu … ms]` satırlarında `lol-champ-select/v1/session` mi
+    `gameflow-phase` mı önce geliyor (nedeni doğrular).
+
+  Geçince: `src-tauri/tests/lane_gecikmesi.rs` silinir, CHANGELOG LC-012 durumu
+  "canlı test edildi" yapılır. Gecikme sürerse sıradaki adaylar: pencerenin her
+  seçimde sıfırdan kurulması (WebView), yeni yamada ilk veri indirmesi.

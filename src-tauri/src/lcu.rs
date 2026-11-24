@@ -375,6 +375,31 @@ struct Inner {
     guess_for: Option<GuessInput>,
     /// Bu seçimde lane verisi alınamadı: her değişiklikte yeniden indirilmez.
     roles_failed: bool,
+    /// Seçimden hemen önceki aşamada gelen son oturum (LC-012): istemci oturumu
+    /// "ChampSelect" aşamasından önce gönderebilir; aşama gelince bununla (lane'iyle) açılır.
+    pending: Option<ChampSelectState>,
+}
+
+/// Oturum çerçevesi geldiğinde, son bilinen aşamaya göre ne yapılır.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionAction {
+    /// Seçim sürüyor (ya da aşama henüz bilinmiyor): oturum uygulanır.
+    Apply,
+    /// Seçimden hemen önce: oturum saklanır, "ChampSelect" gelince uygulanır.
+    Hold,
+    /// Oyun başladı / bitti: gecikmiş güncelleme pencereyi yeniden açmasın, yok sayılır.
+    Ignore,
+}
+
+/// Seçimden önceki aşamalar: bu sırada gelen oturum atılmaz, saklanır.
+const PRE_SELECT_PHASES: [&str; 3] = ["Lobby", "Matchmaking", "ReadyCheck"];
+
+pub fn session_action(phase: Option<&str>) -> SessionAction {
+    match phase {
+        None | Some("ChampSelect") => SessionAction::Apply,
+        Some(p) if PRE_SELECT_PHASES.contains(&p) => SessionAction::Hold,
+        Some(_) => SessionAction::Ignore,
+    }
 }
 
 impl Inner {
@@ -394,20 +419,32 @@ impl Inner {
                 self.connected = c;
                 self.phase = None;
                 self.active = false;
+                self.pending = None;
             }
             Change::Phase(p) => {
                 self.active = p == "ChampSelect";
+                // Seçimden önce gelmiş oturum varsa pencere lane'siz açılmasın.
+                let pending = self.pending.take();
+                if self.active
+                    && let Some(s) = pending
+                {
+                    self.state = s;
+                }
                 self.phase = Some(p);
             }
-            Change::Session(Some(s)) => {
-                // Aşama bilinmiyorsa oturumun kendisi seçimin sürdüğünü gösterir; oyun
-                // başladıktan sonra gelen gecikmiş bir güncelleme pencereyi yeniden açmasın.
-                if self.phase.as_deref().is_none_or(|p| p == "ChampSelect") {
+            // Aşama bilinmiyorsa oturumun kendisi seçimin sürdüğünü gösterir (bkz. `session_action`).
+            Change::Session(Some(s)) => match session_action(self.phase.as_deref()) {
+                SessionAction::Apply => {
                     self.active = true;
                     self.state = s;
                 }
+                SessionAction::Hold => self.pending = Some(s),
+                SessionAction::Ignore => {}
+            },
+            Change::Session(None) => {
+                self.active = false;
+                self.pending = None;
             }
-            Change::Session(None) => self.active = false,
             Change::Opponent(o) => self.chosen = o,
             Change::Lane(l) => self.manual_lane = l,
         }
@@ -720,6 +757,15 @@ fn parse_frame(text: &str) -> Option<Change> {
     let (op, _, head): (u8, IgnoredAny, Head) = serde_json::from_str(text).ok()?;
     if op != 8 {
         return None;
+    }
+    // Yalnızca geliştirme sürümü (`npm run tauri dev`): olayların geliş sırası terminale
+    // yazılır (LC-012: oturum mu aşama mı önce geliyor). Dağıtım sürümüne girmez.
+    #[cfg(debug_assertions)]
+    {
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() % 100_000);
+        eprintln!("[lcu {ms:>5} ms] {} {}", head.event_type, head.uri);
     }
     match head.uri.as_str() {
         PHASE_URI => {
