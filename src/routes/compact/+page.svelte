@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import {
+    banSuggestions,
     championMatchup,
     closeCompact,
     errorText,
@@ -18,11 +19,13 @@
   import LaneIcon from '$lib/LaneIcon.svelte';
   import { tooltip } from '$lib/tooltip';
   import type {
+    BanSuggestion,
     ChampSelectState,
     Item,
     Lane,
     Recommendation,
     Rune,
+    Scored,
     Spell,
     StaticPayload
   } from '$lib/types';
@@ -32,12 +35,14 @@
   // State comes from the League client (lcu.rs): pulled once on mount, then pushed
   // with the `champ-select` event. No timers, no animations.
 
+  type Kind = 'pool' | 'mine' | 'ban';
   type Result =
     | { kind: 'none' }
-    | { kind: 'loading'; for: 'pool' | 'mine' }
-    | { kind: 'error'; for: 'pool' | 'mine'; message: string }
+    | { kind: 'loading'; for: Kind }
+    | { kind: 'error'; for: Kind; message: string }
     | { kind: 'pool'; recs: Recommendation[] }
-    | { kind: 'mine'; rec: Recommendation };
+    | { kind: 'mine'; rec: Recommendation }
+    | { kind: 'ban'; recs: BanSuggestion[] };
 
   let data = $state.raw<StaticPayload | null>(null);
   let staticError = $state<string | null>(null);
@@ -54,11 +59,20 @@
   const lane = $derived(cs?.myLane ?? pickedLane);
   const opponent = $derived(cs?.opponent ?? null);
   const mine = $derived(cs?.locked ? (cs.myChampion ?? null) : null);
+  // LC-011: my ban is not done yet; the suggestions are for the champion I hover
+  const banning = $derived(!!cs?.banPhase && mine === null);
+  const intent = $derived(cs?.myIntent ?? null);
 
-  // What the body needs: after lock-in my champion vs the opponent (build even without
-  // one), before lock-in my pool vs the opponent. A string so it only changes with its values.
+  // What the body needs: in the ban phase the counters of the hovered champion (bans and
+  // allies skipped), after lock-in my champion vs the opponent (build even without one),
+  // before lock-in my pool vs the opponent. A string so it only changes with its values.
   const requestKey = $derived.by(() => {
-    if (!data || !active || !lane) return null;
+    if (!data || !active || !lane || !cs) return null;
+    if (banning) {
+      if (intent === null) return null;
+      const skip = [...new Set([...cs.bans, ...cs.allies])].sort((x, y) => x - y);
+      return `ban:${lane}:${intent}:${skip.join(',')}`;
+    }
     if (mine !== null) return `mine:${lane}:${mine}:${opponent ?? 0}`;
     if (opponent !== null) return `pool:${lane}:${opponent}`;
     return null;
@@ -73,14 +87,19 @@
       result = { kind: 'none' };
       return;
     }
-    const [kind, l, a, b] = key.split(':') as ['pool' | 'mine', Lane, string, string];
+    const [kind, l, a, b] = key.split(':') as [Kind, Lane, string, string];
     // keep the old rows visible while the same kind refreshes (no flicker)
     const prev = untrack(() => result);
     if (prev.kind !== kind) result = { kind: 'loading', for: kind };
     const job: Promise<Result> =
-      kind === 'mine'
-        ? championMatchup(l, Number(a), Number(b)).then((rec) => ({ kind: 'mine', rec }))
-        : recommend(l, Number(a)).then((recs) => ({ kind: 'pool', recs }));
+      kind === 'ban'
+        ? banSuggestions(l, Number(a), b ? b.split(',').map(Number) : []).then((recs) => ({
+            kind: 'ban',
+            recs
+          }))
+        : kind === 'mine'
+          ? championMatchup(l, Number(a), Number(b)).then((rec) => ({ kind: 'mine', rec }))
+          : recommend(l, Number(a)).then((recs) => ({ kind: 'pool', recs }));
     job.then(
       (r) => {
         if (my === seq) result = r;
@@ -172,12 +191,16 @@
       : []
   );
 
-  const vClass = (r: Recommendation) => (r.error !== null && r.matches === 0 ? 'failed' : r.verdict);
-  const vLabel = (r: Recommendation) =>
-    r.error !== null && r.matches === 0 ? 'Alınamadı' : VERDICT_NAMES[r.verdict];
-  const rate = (r: Recommendation) => (r.winrate === null ? '—' : formatPercent(r.winrate));
-  const games = (r: Recommendation) =>
-    r.matches > 0 ? `${formatCount(r.matches)} maç` : r.error !== null ? 'Veri alınamadı' : 'Eşleşme verisi yok';
+  // A Recommendation carries `error`; a ban suggestion (plain Scored) has none.
+  type Row = Scored & { error?: string | null };
+  const failed = (r: Row) => r.error != null && r.matches === 0;
+  const vClass = (r: Row) => (failed(r) ? 'failed' : r.verdict);
+  const vLabel = (r: Row) => (failed(r) ? 'Alınamadı' : VERDICT_NAMES[r.verdict]);
+  const rate = (r: Row) => (r.winrate === null ? '—' : formatPercent(r.winrate));
+  const games = (r: Row) =>
+    r.matches > 0 ? `${formatCount(r.matches)} maç` : r.error != null ? 'Veri alınamadı' : 'Eşleşme verisi yok';
+  const banTip = (r: BanSuggestion) =>
+    intent === null ? '' : `${champName(intent)}, ${champName(r.champion)} karşısında ${rate(r)} kazanıyor`;
 </script>
 
 <svelte:head>
@@ -203,7 +226,7 @@
   </div>
 {/snippet}
 
-{#snippet verdict(r: Recommendation)}
+{#snippet verdict(r: Row)}
   <span class="verdict v-{vClass(r)}" use:tooltip={games(r)}>
     <span class="vdot" aria-hidden="true"></span>{vLabel(r)}
   </span>
@@ -282,7 +305,7 @@
           {opponent === null ? 'Rakibini seç' : cs.opponentChosen ? 'Senin seçimin' : 'Tahmin'}
         </span>
       {:else}
-        <span class="waiting">Rakip bekleniyor…</span>
+        <span class="waiting">{banning ? 'Banlar sürüyor…' : 'Rakip bekleniyor…'}</span>
       {/if}
     </section>
   {/if}
@@ -302,6 +325,54 @@
         <p class="msg-detail">Önerileri görmek için lane'ini seç.</p>
         {@render lanePicker()}
       </div>
+    {:else if banning}
+      {@const me = intent !== null ? champByKey.get(intent) : undefined}
+      <div class="title-row">
+        <h2 class="section-title">Ban önerisi</h2>
+        {#if intent !== null}
+          <span class="vs for">
+            {#if me}<GameIcon src={me.icon} name={me.name} size={16} crop tip={false} />{/if}
+            <b>{champName(intent)}</b> için
+          </span>
+        {/if}
+      </div>
+
+      {#if intent === null}
+        {@render message(
+          'Oynayacağın şampiyonu göster',
+          'Ona karşı en zor rakipleri burada sıralarım; birini banlayabilirsin.'
+        )}
+      {:else if result.kind === 'error'}
+        <div class="inline-error" role="alert">
+          <span>Veri alınamadı</span>
+          <button type="button" class="btn btn-sm" use:tooltip={result.message} onclick={() => retries++}>
+            Tekrar dene
+          </button>
+        </div>
+      {:else if result.kind === 'ban' && result.recs.length === 0}
+        {@render message(`${LANE_NAMES[lane]} için eşleşme verisi yok`, null)}
+      {:else if result.kind === 'ban'}
+        <ol class="rows">
+          {#each result.recs as r, i (r.champion)}
+            {@const c = champByKey.get(r.champion)}
+            <li class="rec ban" class:worst={i === 0}>
+              {#if c}<GameIcon src={c.icon} name={c.name} size={32} crop tip={false} />{/if}
+              <div class="who">
+                <span class="cname">{champName(r.champion)}</span>
+                <span class="sub">
+                  {#if i === 0}<span class="danger">En tehlikeli</span>{:else}Counter #{i + 1}{/if}
+                </span>
+              </div>
+              <span class="rate v-{vClass(r)}" use:tooltip={banTip(r)}>{rate(r)}</span>
+              {@render verdict(r)}
+            </li>
+          {/each}
+        </ol>
+      {:else}
+        <ol class="rows" aria-busy="true" aria-label="Ban önerisi yükleniyor">
+          {#each [0, 1, 2] as i (i)}<li class="rec skeleton"><span class="sk-icon"></span><span class="sk-line"></span></li>{/each}
+        </ol>
+      {/if}
     {:else if mine !== null}
       {@const me = champByKey.get(mine)}
       {@const opp = opponent !== null ? champByKey.get(opponent) : undefined}
@@ -409,14 +480,14 @@
         <ol class="rows">
           {#each result.recs.slice(0, 3) as r, i (r.champion)}
             {@const c = champByKey.get(r.champion)}
-            {@const intent = r.champion === cs.myIntent}
-            <li class="rec" class:best={i === 0} class:intent>
+            {@const isIntent = r.champion === intent}
+            <li class="rec" class:best={i === 0} class:intent={isIntent}>
               {#if c}<GameIcon src={c.icon} name={c.name} size={32} crop tip={false} />{/if}
               <div class="who">
                 <span class="cname">{champName(r.champion)}</span>
                 <span class="sub">
                   {#if i === 0}<span class="star">★ En iyi</span>{:else}Tercih #{r.poolIndex + 1}{/if}
-                  {#if intent}<span class="tag">Seçimin</span>{/if}
+                  {#if isIntent}<span class="tag">Seçimin</span>{/if}
                 </span>
               </div>
               <span class="rate v-{vClass(r)}">{rate(r)}</span>
@@ -699,6 +770,22 @@
     background:
       radial-gradient(ellipse 60% 140% at 0% 0%, rgba(200, 170, 110, 0.1), transparent 60%),
       linear-gradient(180deg, rgba(19, 33, 58, 0.97), rgba(10, 20, 40, 0.97));
+  }
+  /* ban suggestions (LC-011): the worst matchup is marked in the "hard" colour */
+  .rec.ban.worst {
+    border-color: color-mix(in srgb, var(--hard) 50%, var(--border));
+    background:
+      radial-gradient(ellipse 60% 140% at 0% 0%, color-mix(in srgb, var(--hard) 12%, transparent), transparent 60%),
+      linear-gradient(180deg, rgba(19, 33, 58, 0.97), rgba(10, 20, 40, 0.97));
+  }
+  .danger {
+    color: var(--hard);
+    font-weight: 600;
+  }
+  .vs.for {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
   .rec.intent::before {
     content: '';

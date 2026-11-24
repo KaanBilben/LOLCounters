@@ -103,6 +103,20 @@ export async function championMatchup(lane: Lane, champion: number, enemy: numbe
   return invoke<Recommendation>('champion_matchup', { lane, champion, enemy });
 }
 
+// --- LC-011: ban suggestions --------------------------------------------------
+
+import type { BanSuggestion } from './types';
+
+/** The worst matchups of `champion` in `lane` (worst first), skipping `exclude` (bans, allies). */
+export async function banSuggestions(
+  lane: Lane,
+  champion: number,
+  exclude: number[]
+): Promise<BanSuggestion[]> {
+  if (useMock) return (await mock()).banSuggestions(lane, champion, exclude);
+  return invoke<BanSuggestion[]>('ban_suggestions', { lane, champion, exclude });
+}
+
 /** Brings the main window to the front. */
 export async function openMainWindow(): Promise<void> {
   if (useMock) return (await mock()).openMainWindow();

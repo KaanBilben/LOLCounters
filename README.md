@@ -4,7 +4,8 @@ League of Legends için hafif bir masaüstü counter öneri uygulaması (Windows
 
 1. İlk açılışta her lane için oynadığın şampiyonları tercih sırasıyla seçersin.
 2. Şampiyon seçimine girince ekranın sağ altında küçük bir pencere açılır:
-   kilitlemeden önce havuzundaki şampiyonları rakibine karşı sıralar (tercih
+   ban aşamasında oynamak için gösterdiğin şampiyonun en zor 3 rakibini
+   banlaman için listeler; kilitlemeden önce havuzundaki şampiyonları rakibine karşı sıralar (tercih
    sıran + eşleşme kazanma oranı), kilitleyince rün, büyü ve eşya önerir.
    Oyun başlayınca kendiliğinden kapanır.
 3. LoL istemcisi kapalıyken ana pencerede lane'ini ve rakibini elle de
