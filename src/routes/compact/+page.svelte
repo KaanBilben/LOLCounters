@@ -12,6 +12,7 @@
     onStaticUpdated,
     openMainWindow,
     recommend,
+    runeOptions,
     setMyLane,
     setOpponent
   } from '$lib/api';
@@ -25,6 +26,8 @@
     Lane,
     Recommendation,
     Rune,
+    RuneOptions,
+    RunePage,
     Scored,
     Spell,
     StaticPayload
@@ -170,20 +173,75 @@
     };
   });
 
+  // --- LC-014: rune options (after lock-in) ---
+  // Fetched apart from the matchup score so a slow `builds` download does not hold the
+  // score back. Opens on the gold (matchup) option, else on the most played one.
+  type RuneState =
+    | { kind: 'none' }
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ok'; data: RuneOptions };
+  let runeState = $state.raw<RuneState>({ kind: 'none' });
+  let runeIdx = $state(0);
+  const runeKey = $derived(
+    data && active && lane && mine !== null ? `${lane}:${mine}:${opponent ?? ''}` : null
+  );
+  let runeSeq = 0;
+  $effect(() => {
+    const key = runeKey;
+    void retries;
+    const my = ++runeSeq;
+    if (!key) {
+      runeState = { kind: 'none' };
+      return;
+    }
+    const [l, c, o] = key.split(':');
+    // a new opponent: keep the current page visible until the new options arrive
+    if (untrack(() => runeState.kind) !== 'ok') runeState = { kind: 'loading' };
+    runeOptions(l as Lane, Number(c), o ? Number(o) : null).then(
+      (d) => {
+        if (my !== runeSeq) return;
+        runeState = { kind: 'ok', data: d };
+        runeIdx = d.gold ?? 0;
+      },
+      (e) => {
+        if (my === runeSeq) runeState = { kind: 'error', message: errorText(e) };
+      }
+    );
+  });
+  const runeList = $derived(runeState.kind === 'ok' ? runeState.data.options : []);
+  const runeGold = $derived(runeState.kind === 'ok' ? runeState.data.gold : null);
+  const page = $derived<RunePage | undefined>(runeList[runeIdx]);
+  const treePerks = (p: RunePage, tree: number) =>
+    p.perks
+      .map((id) => data?.runes[String(id)])
+      .filter((r): r is Rune => !!r && r.tree === tree)
+      .sort((a, b) => a.slot - b.slot);
+  const primaryPerks = $derived(page ? treePerks(page, page.primaryTree) : []);
+  const secondaryPerks = $derived(page ? treePerks(page, page.secondaryTree) : []);
+  const secondaryTree = $derived(page && data ? data.trees[String(page.secondaryTree)] : undefined);
+  const shardTip = $derived(
+    page && data
+      ? `Parçalar: ${page.shards.map((id) => data!.shards[String(id)] ?? `#${id}`).join(' · ')}`
+      : ''
+  );
+  const pageTip = (p: RunePage, i: number) => {
+    const tree = data?.trees[String(p.primaryTree)]?.name ?? '';
+    const tree2 = data?.trees[String(p.secondaryTree)]?.name ?? '';
+    const ks = treePerks(p, p.primaryTree)[0]?.name ?? tree;
+    const gold = i === runeGold && opponent !== null ? ` · ${champName(opponent)} için önerilen` : '';
+    return `${i + 1}. seçenek: ${ks} · ${tree2}${gold}`;
+  };
+
   // --- build pieces (after lock-in) ---
   const mineRec = $derived(result.kind === 'mine' ? result.rec : null);
   const build = $derived(mineRec?.build ?? null);
-  const keystone = $derived.by((): Rune | undefined => {
-    if (!build || !data) return undefined;
-    return build.runes.perks
-      .map((id) => data!.runes[String(id)])
-      .find((r) => !!r && r.tree === build.runes.primaryTree && r.slot === 0);
-  });
-  const secondaryTree = $derived(build && data ? data.trees[String(build.runes.secondaryTree)] : undefined);
+  // the matchup's spells when the gold option exists, else the lane's general spells
+  const spellKeys = $derived(
+    runeState.kind === 'ok' && runeState.data.spells.length ? runeState.data.spells : (build?.spells ?? [])
+  );
   const spells = $derived(
-    build && data
-      ? build.spells.map((k) => data!.spells[String(k)]).filter((s): s is Spell => !!s)
-      : []
+    data ? spellKeys.map((k) => data!.spells[String(k)]).filter((s): s is Spell => !!s) : []
   );
   const core = $derived(
     build && data
@@ -377,7 +435,7 @@
       {@const me = champByKey.get(mine)}
       {@const opp = opponent !== null ? champByKey.get(opponent) : undefined}
       <div class="duel">
-        {#if me}<GameIcon src={me.icon} name={me.name} size={42} crop tip={false} />{/if}
+        {#if me}<GameIcon src={me.icon} name={me.name} size={36} crop tip={false} />{/if}
         <div class="who">
           <span class="cname">{champName(mine)}</span>
           <span class="sub">
@@ -410,45 +468,118 @@
         <div class="build skeleton" aria-busy="true" aria-label="Build yükleniyor">
           {#each [0, 1, 2] as i (i)}<span class="sk-group"></span>{/each}
         </div>
-      {:else if !build}
-        <p class="nobuild">{mineRec.error !== null ? 'Build verisi alınamadı' : 'Bu lane için build verisi yok'}</p>
       {:else}
-        <div class="build">
-          <section class="grp" aria-label="Rünler">
+        <section class="runes" aria-label="Rün seçenekleri">
+          <div class="runes-head">
             <h4 class="section-title">Rünler</h4>
-            <div class="row">
-              {#if keystone}<GameIcon src={keystone.icon} name={keystone.name} size={30} shape="round" />{/if}
-              {#if secondaryTree}
-                <span class="tree2">
-                  <GameIcon src={secondaryTree.icon} name={secondaryTree.name} size={20} shape="round" />
-                </span>
-              {/if}
-            </div>
-          </section>
-          {#if spells.length}
-            <section class="grp" aria-label="Büyüler">
-              <h4 class="section-title">Büyüler</h4>
-              <div class="row">
-                {#each spells as s (s.key)}<GameIcon src={s.icon} name={s.name} size={28} />{/each}
+            {#if runeList.length > 1}
+              <div class="pager">
+                <button
+                  type="button"
+                  class="pg"
+                  aria-label="Önceki rün sayfası"
+                  disabled={runeIdx === 0}
+                  onclick={() => (runeIdx = Math.max(0, runeIdx - 1))}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
+                </button>
+                {#each runeList as p, i (i)}
+                  <button
+                    type="button"
+                    class="dot"
+                    class:on={i === runeIdx}
+                    class:gold={i === runeGold}
+                    aria-label={pageTip(p, i)}
+                    aria-current={i === runeIdx}
+                    use:tooltip={pageTip(p, i)}
+                    onclick={() => (runeIdx = i)}
+                  ></button>
+                {/each}
+                <button
+                  type="button"
+                  class="pg"
+                  aria-label="Sonraki rün sayfası"
+                  disabled={runeIdx >= runeList.length - 1}
+                  onclick={() => (runeIdx = Math.min(runeList.length - 1, runeIdx + 1))}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg>
+                </button>
               </div>
-            </section>
-          {/if}
-          {#if core.length}
-            <section class="grp" aria-label="Çekirdek eşyalar">
-              <h4 class="section-title">Çekirdek</h4>
-              <div class="row">
-                {#each core as it, i (i)}
-                  {#if i > 0}<span class="sep" aria-hidden="true">›</span>{/if}
-                  <GameIcon src={it.icon} name={it.name} size={28} />
+            {/if}
+            {#if runeGold !== null && opponent !== null}
+              <button
+                type="button"
+                class="gold-tag"
+                class:dim={runeIdx !== runeGold}
+                use:tooltip={'u.gg bu eşleşmede bu sayfayı öneriyor'}
+                onclick={() => (runeIdx = runeGold ?? 0)}
+              >
+                ★ {champName(opponent)} için önerilen
+              </button>
+            {/if}
+          </div>
+
+          {#if runeState.kind === 'error'}
+            <div class="page empty" role="alert">
+              <span>Rünler alınamadı</span>
+              <button type="button" class="btn btn-sm" use:tooltip={runeState.message} onclick={() => retries++}>
+                Tekrar dene
+              </button>
+            </div>
+          {:else if runeState.kind !== 'ok'}
+            <div class="page skeleton" aria-busy="true" aria-label="Rünler yükleniyor"></div>
+          {:else if !page}
+            <div class="page empty"><span>Bu lane için rün verisi yok</span></div>
+          {:else}
+            <div class="page" class:gold={runeIdx === runeGold}>
+              <div class="tree" aria-label="Ana ağaç">
+                {#each primaryPerks as r, i (r.id)}
+                  <GameIcon src={r.icon} name={r.name} size={i === 0 ? 30 : 20} shape="round" />
                 {/each}
               </div>
-            </section>
+              <span class="tsep" aria-hidden="true"></span>
+              <div class="tree" aria-label="İkincil ağaç">
+                {#if secondaryTree}
+                  <span class="tree2">
+                    <GameIcon src={secondaryTree.icon} name={secondaryTree.name} size={16} shape="round" />
+                  </span>
+                {/if}
+                {#each secondaryPerks as r (r.id)}
+                  <GameIcon src={r.icon} name={r.name} size={20} shape="round" />
+                {/each}
+              </div>
+              <span class="pstats" use:tooltip={shardTip}>
+                {#if page.matches > 0}
+                  <b>{formatPercent(page.wins / page.matches)}</b>
+                  <span>{formatCount(page.matches)} maç</span>
+                {/if}
+              </span>
+            </div>
+          {/if}
+        </section>
+
+        <div class="kit">
+          {#if spells.length}
+            <div class="row" aria-label="Büyüler">
+              {#each spells as s (s.key)}<GameIcon src={s.icon} name={s.name} size={26} />{/each}
+            </div>
+          {/if}
+          {#if core.length && build}
+            <span class="ksep" aria-hidden="true"></span>
+            <div
+              class="row"
+              aria-label="Çekirdek eşyalar"
+              use:tooltip={build.matches > 0
+                ? `Genel build · ${formatPercent(build.wins / build.matches)} kazanma · ${formatCount(build.matches)} maç`
+                : 'Genel build'}
+            >
+              {#each core as it, i (i)}
+                {#if i > 0}<span class="sep" aria-hidden="true">›</span>{/if}
+                <GameIcon src={it.icon} name={it.name} size={26} />
+              {/each}
+            </div>
           {/if}
         </div>
-        <p class="meta">
-          Genel build{#if build.matches > 0}&nbsp;· {formatPercent(build.wins / build.matches)} kazanma ·
-            {formatCount(build.matches)} maç{/if}
-        </p>
       {/if}
     {:else}
       <div class="title-row">
@@ -925,46 +1056,211 @@
     gap: 18px;
     padding-top: 4px;
   }
-  .grp {
+
+  /* rune options (LC-014) */
+  .runes {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
   }
-  .grp .section-title {
+  .runes-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+  }
+  .runes-head .section-title {
     font-size: 9.5px;
+  }
+  .pager {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .pg {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 2px;
+    color: var(--gold);
+    transition:
+      color var(--t-fast) var(--ease),
+      background var(--t-fast) var(--ease);
+  }
+  .pg svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .pg:hover:not(:disabled) {
+    color: var(--gold-light);
+    background: rgba(200, 170, 110, 0.12);
+  }
+  .pg:disabled {
+    color: #3a4048;
+    cursor: default;
+  }
+  .dot {
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 18px;
+  }
+  .dot::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border: 1px solid var(--gold-dark);
+    border-radius: 50%;
+    background: transparent;
+    transition:
+      background var(--t-fast) var(--ease),
+      border-color var(--t-fast) var(--ease),
+      transform var(--t-fast) var(--ease);
+  }
+  .dot:hover::before {
+    border-color: var(--gold-light);
+  }
+  .dot.on::before {
+    border-color: var(--gold-light);
+    background: var(--gold-light);
+    transform: scale(1.15);
+  }
+  .dot.gold::before {
+    border-color: #f0c050;
+    box-shadow: 0 0 5px rgba(240, 192, 80, 0.6);
+  }
+  .dot.gold.on::before {
+    background: #f0c050;
+  }
+  .gold-tag {
+    margin-left: auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    height: 18px;
+    padding: 0 8px;
+    border: 1px solid rgba(240, 192, 80, 0.55);
+    border-radius: 9px;
+    background: rgba(240, 192, 80, 0.1);
+    color: #f0c050;
+    font-size: 10.5px;
+    font-weight: 600;
+    transition:
+      opacity var(--t-fast) var(--ease),
+      background var(--t-fast) var(--ease);
+  }
+  .gold-tag.dim {
+    opacity: 0.55;
+  }
+  .gold-tag:hover {
+    opacity: 1;
+    background: rgba(240, 192, 80, 0.18);
+  }
+  .page {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 10px 0 7px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(15, 26, 43, 0.95), rgba(10, 20, 40, 0.95));
+    transition:
+      border-color var(--t-fast) var(--ease),
+      box-shadow var(--t-fast) var(--ease);
+  }
+  .page.gold {
+    border-color: #f0c050;
+    background:
+      radial-gradient(ellipse 60% 140% at 0% 0%, rgba(240, 192, 80, 0.12), transparent 60%),
+      linear-gradient(180deg, rgba(19, 33, 58, 0.97), rgba(10, 20, 40, 0.97));
+    box-shadow:
+      0 0 0 1px rgba(240, 192, 80, 0.25),
+      0 0 12px rgba(240, 192, 80, 0.3);
+  }
+  .page.empty {
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .page.empty[role='alert'] {
+    color: var(--hard);
+    font-weight: 600;
+  }
+  .page.skeleton {
+    border-color: #161d26;
+  }
+  .tree {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .tree :global(.icon) {
+    border-color: transparent;
+    background: #0b111a;
+  }
+  .tsep {
+    width: 1px;
+    height: 24px;
+    background: #222a35;
+  }
+  .tree2 {
+    margin-right: 1px;
+    opacity: 0.85;
+  }
+  .tree2 :global(.icon) {
+    background: transparent;
+  }
+  .pstats {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .pstats b {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .page.gold .pstats b {
+    color: #f0c050;
+  }
+  .pstats span {
+    color: var(--faint);
+    font-size: 10.5px;
+  }
+  .kit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ksep {
+    width: 1px;
+    height: 18px;
+    background: #222a35;
   }
   .row {
     display: flex;
     align-items: center;
     gap: 4px;
-    height: 30px;
-  }
-  .tree2 {
-    margin-left: 2px;
-  }
-  .tree2 :global(.icon) {
-    border-color: transparent;
-    background: transparent;
+    height: 28px;
   }
   .sep {
     color: var(--gold-mid);
     font-size: 14px;
     line-height: 1;
-  }
-  .meta {
-    margin-top: auto;
-    color: var(--faint);
-    font-size: 11px;
-    text-align: right;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .nobuild {
-    padding: 14px 0;
-    color: var(--muted);
-    font-size: 12px;
-    text-align: center;
   }
 
   /* static placeholders while loading (no animation: idle CPU stays at zero) */

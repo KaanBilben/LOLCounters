@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## LC-014 — Rün seçenekleri arayüzü: 3 sayfa, geçiş ve altın vurgu
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-009, LC-013, LC-015
+
+> ### 2026-11-24 · Claude — Küçük pencerede tam rün sayfası
+> - **Ne:** kilitten sonra "Rünler" başlığında ‹ • • • › ile 3 seçenek arası geçiş; tam sayfa (ana rün + 3 ana, ikincil ağaç + 2 rün, sağda oran ve maç; parçalar ipucunda); u.gg eşleşme sayfası altın çerçeve, altın nokta ve "★ {rakip} için önerilen" etiketiyle (tıklayınca ona döner); pencere altın seçenekte, yoksa en çok oynananda açılır. Altında büyüler + çekirdek eşyalar tek satırda (genel build oranı ipucunda; "Genel build" satırı kalktı). Rünler maç verisinden ayrı istenir; yükleniyor / alınamadı (Tekrar dene) / veri yok durumları. Sahte veri: `mockRunesFail`, `mockRunesEmpty`
+> - **Neden:** tek sayfa yerine seçenek görmek ve eşleşmeye göre en iyisini hemen tanımak
+> - **Etkilenen:** LC-009 (kilit sonrası görünüm değişti)
+> - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/mock.ts, README.md, CLAUDE.md
+> - **Commit:** —
+
 ## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
 
@@ -7,7 +17,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Ne:** `ugg.rs` `builds` dosyasından lane başına rün gruplarını (maça göre, her grubun en çok oynanan sayfası) ve `overview/.../matchups/{ben}_{rakip}` dosyasından eşleşme sayfasını + büyüleri okur (oradaki 6. eleman kayıp olduğu için okunmaz); `scoring::pick_rune_options` (ilk 3; ≥100 maçlı eşleşme sayfası aynı gruptaki seçeneğin, yoksa 3.'nün yerine geçer ve altın olur); yeni komut `rune_options` (bellek → disk `runes_{key}.json` / `mu_{key}_{rakip}.json` → ağ); `types.ts`, `api.ts`, sahte veri
 > - **Neden:** küçük pencerede 3 rün seçeneği ve eşleşmeye göre en iyisinin vurgusu; u.gg overview yalnızca tek sayfa veriyor
 > - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, docs/scoring.md
-> - **Commit:** —
+> - **Commit:** a4610f6
 
 ## LC-012 — Küçük pencere seçim başında lane'siz açılıyor
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
@@ -62,6 +72,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
 > - **Commit:** 0a79e9e
 >
 > ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
+>
+> ### 2026-11-24 · Claude — → LC-014 tarafından değiştirildi
 
 ## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
