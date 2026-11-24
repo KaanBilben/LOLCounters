@@ -8,7 +8,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** ADC ya da support oynarken partnerle iyi giden şampiyonları göstermek (arayüz: LC-017)
 > - **Etkilenen:** LC-006 (`roles.json` biçimi değişti; eski kayıt bir kez yeniden indirilir)
 > - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/lcu.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, docs/scoring.md
-> - **Commit:** —
+> - **Commit:** 6c457d0
 
 ## LC-015 — Rün ve büyü içe aktarma
 Başlangıç 2026-11-24 · Durum: main'de (merge 36913fb), canlı test edilmedi — uç noktalar gerçek istemcide denenmedi (bkz. TODO.md) · İlgili: LC-008, LC-014
