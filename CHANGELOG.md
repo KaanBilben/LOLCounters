@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## LC-016 — Bot lane sinerjisi verisi
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-006, LC-008, LC-017
+
+> ### 2026-11-24 · Claude — u.gg `champion_duos`, partner ve sinerji puanı
+> - **Ne:** `ugg.rs` partnerin `champion_duos` dosyasını okur (`[birlikte oynayan, galibiyet, maç, …]`); lane verisi artık galibiyeti de saklar (`LaneStat`, tek başına oran için). `lcu.rs` `duoPartner` / `duoPartnerLocked`: ADC ↔ support partnerinin gösterdiği ya da kilitlediği şampiyon. `scoring::duo_synergies` (ikilinin düzeltilmiş oranı − iki tek başına oranın ortalaması, ≥200 maç, iyi ≥ +1,5) ve `best_synergies` (artı sinerjili en iyi 5, banlı / alınmış yok, counter'lar önce). Yeni komut `duo_synergy` (bellek → disk `duos_{partner}.json` → ağ; rakibin eşleşme verisi alınamazsa `error` ile döner, counter işaretleri eksik olabilir); `types.ts`, `api.ts`, sahte veri
+> - **Neden:** ADC ya da support oynarken partnerle iyi giden şampiyonları göstermek (arayüz: LC-017)
+> - **Etkilenen:** LC-006 (`roles.json` biçimi değişti; eski kayıt bir kez yeniden indirilir)
+> - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/lcu.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, docs/scoring.md
+> - **Commit:** —
+
 ## LC-015 — Rün ve büyü içe aktarma
 Başlangıç 2026-11-24 · Durum: main'de (merge 36913fb), canlı test edilmedi — uç noktalar gerçek istemcide denenmedi (bkz. TODO.md) · İlgili: LC-008, LC-014
 

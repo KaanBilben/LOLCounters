@@ -36,6 +36,7 @@ projesinden alındı ve 2026-11-22'de canlı veriyle doğrulandı. Kod:
 | Lane filtresi (şampiyon sıralaması) | `https://stats2.u.gg/lol/1.5/champion_ranking/world/{yama}/ranked_solo_5x5/{tier}/{sürüm}.json` |
 | Rün seçenekleri (LC-013) | `https://stats2.u.gg/lol/1.5/builds/{yama}/ranked_solo_5x5/{şampiyon key}/{sürüm}.json` |
 | Eşleşmeye özel sayfa (LC-013) | `https://stats2.u.gg/lol/1.5/overview/{yama}/ranked_solo_5x5/matchups/{benim key}_{rakip key}/{sürüm}.json` |
+| Bot lane ikilileri (LC-016) | `https://stats2.u.gg/lol/1.5/champion_duos/{yama}/ranked_solo_5x5/{partner key}/{sürüm}.json` |
 
 - `{yama}`: Data Dragon sürümünün ilk iki parçası, `_` ile: `16.23.1` → `16_23`.
   u.gg o yamayı henüz listelemiyorsa listedeki en yeni yama kullanılır.
@@ -100,12 +101,28 @@ Dragon'daki ağaç ve slot bilgisiyle yeniden dizer.
   indirilir; diskte `ugg/{yama}/mu_{key}_{rakip}.json`.
 - Seçim ve vurgu kuralı: [scoring.md](scoring.md#rün-seçenekleri).
 
+### Bot lane ikilileri (LC-016)
+
+2026-11-24'te canlı veriyle doğrulandı (16.23; Jinx).
+
+- **`champion_duos`** (`{sürüm}` = yama haritasındaki `champion_duos`, yoksa
+  `1.5.0`; ham dosya ~1–1,4 MB, yalnızca dünya verisi okunur): normal
+  `bölge → rank → rol → [veri, zaman damgası]` yapısı; rol, dosyanın
+  şampiyonunun (partnerin) rolüdür. Satır:
+  `[birlikte oynayan key, galibiyet, maç, 7 sayı (anlamı bilinmiyor), onun rolü]`;
+  yalnızca ilk üçü okunur. ADC dosyasında satırlar support'lardır, support
+  dosyasında ADC'ler (Jinx ADC: 161 satır, hepsi rol `2`).
+- Yalnızca partnerin şampiyonu belli olunca indirilir; diskte
+  `ugg/{yama}/duos_{partner}.json`. Sinerji kuralı:
+  [scoring.md](scoring.md#bot-lane-sinerjisi).
+
 ## Lane filtresi (u.gg champion_ranking)
 
 Havuzum ve rakip seçimindeki şampiyon ızgarası, LoL istemcisindeki gibi
 yalnızca seçili lane'de oynanan şampiyonları gösterir. Veri bütün şampiyonlar
 için tek dosyadır (~145 KB, gzip ile ~57 KB); yama başına bir kez indirilir ve
-yalnızca lane başına maç sayısı `ugg/{yama}/roles.json` olarak saklanır (~12 KB).
+yalnızca lane başına galibiyet ve maç `ugg/{yama}/roles.json` olarak saklanır (~20 KB;
+eski biçimdeki kayıt okunamaz ve bir kez yeniden indirilir).
 Kod: `fetch_roles` / `parse_roles` (`src-tauri/src/ugg.rs`), `get_roles` komutu (`src-tauri/src/lib.rs`).
 
 - `{sürüm}`: yama haritasındaki `champion_ranking` değeri, yoksa `1.5.0`.
@@ -120,7 +137,8 @@ Kod: `fetch_roles` / `parse_roles` (`src-tauri/src/ugg.rs`), `get_roles` komutu 
 JSON: 4 elemanlı dizi; yalnızca `[0]` okunur:
 `{ "top" | "jungle" | "mid" | "adc" | "supp": [satır, ...] }`.
 Satır: `["şampiyon key (metin)", [10 kötü eşleşme], galibiyet, maç, ...]` →
-yalnızca `[0]` (key) ve `[3]` (maç) kullanılır. Üst dizinin `[1]`–`[3]` elemanları kullanılmaz.
+yalnızca `[0]` (key), `[2]` (galibiyet) ve `[3]` (maç) kullanılır; galibiyet
+bot lane sinerjisinde şampiyonun tek başına oranı içindir (LC-016). Üst dizinin `[1]`–`[3]` elemanları kullanılmaz.
 
 Kural: lane payı = o lane'deki maç / beş lane'deki toplam maç. Pay
 `ROLE_MIN_SHARE` (`ugg.rs` başında, `0.10` = %10) ya da üstündeyse şampiyon o
@@ -175,7 +193,7 @@ yoklama yoktur. Lockfile görününce bağlantı en çok 4 kez denenir (0/1/2/4 
 | Alan | Kullanım |
 |---|---|
 | `localPlayerCellId` | Benim hücrem |
-| `myTeam[].cellId`, `championId`, `championPickIntent`, `assignedPosition` | Benim rolüm (`top/jungle/middle/bottom/utility`) ve niyetim; takım arkadaşlarının seçtiği ya da gösterdiği şampiyon (ban önerisinden çıkarılır) |
+| `myTeam[].cellId`, `championId`, `championPickIntent`, `assignedPosition` | Benim rolüm (`top/jungle/middle/bottom/utility`) ve niyetim; takım arkadaşlarının seçtiği ya da gösterdiği şampiyon (ban önerisinden çıkarılır); bot lane partnerim (LC-016): ben `bottom`'sam `utility` olan arkadaş, `utility`'ysem `bottom` olan; kilitleyip kilitlemediği `actions`'tan |
 | `theirTeam[].championId` | Görünen rakipler (0 olmayanlar) |
 | `actions[][].actorCellId`, `championId`, `completed`, `type` | Kilit: benim tamamlanmış `pick` eylemim. Ban aşaması: benim tamamlanmamış `ban` eylemim varsa (kilit yokken) ban önerisi gösterilir; tamamlanmış `ban` eylemlerindeki şampiyonlar öneriden çıkarılır |
 | aşama (`gameflow-phase`) | `ChampSelect` başlangıç; başka her aşama ya da oturum `Delete` bitiş |

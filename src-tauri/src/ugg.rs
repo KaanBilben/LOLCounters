@@ -80,6 +80,18 @@ pub struct UggPatch {
     /// Rün seçenekleri (`builds`) dosyasının sürümü (LC-013); eski kayıtlarda yoksa varsayılan.
     #[serde(default = "default_api_version")]
     pub builds_version: String,
+    /// Bot lane ikilileri (`champion_duos`) dosyasının sürümü (LC-016); eski kayıtlarda yoksa varsayılan.
+    #[serde(default = "default_api_version")]
+    pub duos_version: String,
+}
+
+/// Bot lane partneriyle birlikte oynanan maçlar (LC-016, `champion_duos`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuoRow {
+    pub partner: i64,
+    pub wins: u32,
+    pub matches: u32,
 }
 
 fn default_api_version() -> String {
@@ -295,6 +307,27 @@ pub fn parse_rune_options(v: &Value) -> HashMap<Lane, Vec<RunePage>> {
     per_lane(v, parse_rune_groups)
 }
 
+/// `champion_duos` satırı `[partner, galibiyet, maç, 7 sayı (anlamı bilinmiyor), partner rolü]`.
+/// ADC lane'inde partnerler support, support lane'inde ADC'dir; maçı 0 olan satır alınmaz.
+fn parse_duo_rows(data: &Value) -> Option<Vec<DuoRow>> {
+    let rows: Vec<DuoRow> = data
+        .as_array()?
+        .iter()
+        .filter_map(|row| {
+            let row = row.as_array()?;
+            let matches = as_u32(row.get(2)?)?;
+            (matches > 0).then_some(())?;
+            Some(DuoRow { partner: as_id(row.first()?)?, wins: as_u32(row.get(1)?)?, matches })
+        })
+        .collect();
+    (!rows.is_empty()).then_some(rows)
+}
+
+/// Lane başına bot lane partnerleri (LC-016, `champion_duos` dosyası).
+pub fn parse_champion_duos(v: &Value) -> HashMap<Lane, Vec<DuoRow>> {
+    per_lane(v, parse_duo_rows)
+}
+
 // ---------- Yama ----------
 
 /// "16.23.1" → "16_23".
@@ -323,6 +356,7 @@ pub fn fallback_patch(ddragon_version: &str) -> UggPatch {
         overview_version: DEFAULT_API_VERSION.to_string(),
         ranking_version: DEFAULT_API_VERSION.to_string(),
         builds_version: DEFAULT_API_VERSION.to_string(),
+        duos_version: DEFAULT_API_VERSION.to_string(),
     }
 }
 
@@ -365,6 +399,7 @@ fn choose_patch(versions: &Value, ddragon_version: &str) -> Result<UggPatch, Str
         overview_version: ver("overview"),
         ranking_version: ver("champion_ranking"),
         builds_version: ver("builds"),
+        duos_version: ver("champion_duos"),
         patch,
     })
 }
@@ -511,6 +546,20 @@ pub async fn fetch_matchup_pages(
     Ok(parse_matchup_pages(&get_world(client, &url).await?))
 }
 
+/// Bir şampiyonun lane başına bot lane partnerleri (LC-016, `champion_duos`, ~1,4 MB; yalnızca
+/// dünya verisi okunur). u.gg'de bu şampiyonun dosyası yoksa (4xx) boş harita döner.
+pub async fn fetch_champion_duos(
+    client: &reqwest::Client,
+    p: &UggPatch,
+    champion_key: i64,
+) -> Result<HashMap<Lane, Vec<DuoRow>>, String> {
+    let url = format!(
+        "{STATS_BASE}/champion_duos/{}/{QUEUE}/{champion_key}/{}.json",
+        p.patch, p.duos_version
+    );
+    Ok(parse_champion_duos(&get_world(client, &url).await?))
+}
+
 // ---------- Lane filtresi (champion_ranking) ----------
 
 /// champion_ranking dosyasının tier'ları; sıra ve anlam `RANKS` ile aynı
@@ -528,11 +577,18 @@ fn ranking_role_key(lane: Lane) -> &'static str {
     }
 }
 
-/// Şampiyon key → lane → maç sayısı.
-pub type RoleGames = HashMap<i64, HashMap<Lane, u32>>;
+/// Bir şampiyonun bir lane'deki toplam sonucu (champion_ranking).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct LaneStat {
+    pub wins: u32,
+    pub matches: u32,
+}
 
-/// `v[0][rol]` = `[[key(metin), [rakipler], galibiyet, maç, ...], ...]`; yalnızca key ve maç okunur.
-/// Maçı 0 olan satır alınmaz.
+/// Şampiyon key → lane → galibiyet ve maç (lane filtresi maçı, LC-016 sinerji galibiyeti kullanır).
+pub type RoleGames = HashMap<i64, HashMap<Lane, LaneStat>>;
+
+/// `v[0][rol]` = `[[key(metin), [rakipler], galibiyet, maç, ...], ...]`; key, galibiyet ve maç
+/// okunur. Maçı 0 olan satır alınmaz.
 pub fn parse_roles(v: &Value) -> RoleGames {
     let mut out: RoleGames = HashMap::new();
     let Some(roles) = v.get(0) else {
@@ -544,12 +600,13 @@ pub fn parse_roles(v: &Value) -> RoleGames {
         };
         for row in rows {
             let Some(row) = row.as_array() else { continue };
-            let (Some(key), Some(games)) = (row.first().and_then(as_id), row.get(3).and_then(as_u32))
+            let (Some(key), Some(matches)) = (row.first().and_then(as_id), row.get(3).and_then(as_u32))
             else {
                 continue;
             };
-            if games > 0 {
-                out.entry(key).or_default().insert(lane, games);
+            let wins = row.get(2).and_then(as_u32).unwrap_or(0).min(matches);
+            if matches > 0 {
+                out.entry(key).or_default().insert(lane, LaneStat { wins, matches });
             }
         }
     }
@@ -561,9 +618,9 @@ pub fn role_shares(games: &RoleGames) -> HashMap<i64, HashMap<Lane, f64>> {
     games
         .iter()
         .filter_map(|(&key, lanes)| {
-            let total: u64 = lanes.values().map(|&g| u64::from(g)).sum();
+            let total: u64 = lanes.values().map(|s| u64::from(s.matches)).sum();
             (total > 0).then(|| {
-                let shares = lanes.iter().map(|(&l, &g)| (l, f64::from(g) / total as f64)).collect();
+                let shares = lanes.iter().map(|(&l, s)| (l, f64::from(s.matches) / total as f64)).collect();
                 (key, shares)
             })
         })
@@ -584,7 +641,7 @@ pub fn lanes_over(shares: &HashMap<i64, HashMap<Lane, f64>>, min: f64) -> HashMa
         .collect()
 }
 
-/// Bütün şampiyonların lane başına maç sayısı (tier sırasıyla ilk dolu dosya).
+/// Bütün şampiyonların lane başına galibiyet ve maç sayısı (tier sırasıyla ilk dolu dosya).
 /// Dosya u.gg'de yoksa (4xx, ör. yayınlanmamış yama) boş harita döner.
 pub async fn fetch_roles(client: &reqwest::Client, p: &UggPatch) -> Result<RoleGames, String> {
     for tier in RANKING_TIERS {

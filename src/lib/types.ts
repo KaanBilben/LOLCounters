@@ -128,6 +128,11 @@ export interface ChampSelectState {
   bans: number[];
   /** Champions my teammates picked or hovered. */
   allies: number[];
+  /** LC-016: my bot lane partner's champion (support if I am ADC, ADC if I am support), hovered
+   * or locked; null on other lanes and in blind pick. */
+  duoPartner: number | null;
+  /** The partner locked the champion in. */
+  duoPartnerLocked: boolean;
   /** My lane opponent: the user's choice, else the guess; null if unknown. */
   opponent: number | null;
   /** True when `opponent` was chosen by the user (not guessed). */
@@ -155,3 +160,26 @@ export interface RuneOptions {
  * `needsConfirm` — no free page slot, ask before overwriting page `page` (send `id` back).
  */
 export type ImportOutcome = { kind: 'done'; spells: boolean } | { kind: 'needsConfirm'; id: number; page: string };
+
+/** LC-016 (src-tauri/src/scoring.rs Synergy): one champion played with my bot lane partner. */
+export interface Synergy {
+  champion: number;
+  /** Games and wins together with the partner. */
+  wins: number;
+  matches: number;
+  /** Percentage points: the pair's adjusted win rate minus the mean of both solo win rates. */
+  synergy: number;
+  /** synergy >= GOOD_SYNERGY (1.5). */
+  good: boolean;
+  /** Also a good matchup against my lane opponent. */
+  counter: boolean;
+}
+
+/** LC-016 duo_synergy (src-tauri/src/lib.rs DuoSynergy): `all` every pair with 200+ games,
+ * best first; `best` the Sinerji tab (top 5 positive, bans / taken skipped, counters first). */
+export interface DuoSynergy {
+  all: Synergy[];
+  best: Synergy[];
+  /** The opponent's matchups could not be loaded: counter marks may be missing; offer a retry. */
+  error: string | null;
+}

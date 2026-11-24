@@ -386,6 +386,8 @@ async function mockChampSelectState(): Promise<ChampSelectState> {
     banPhase: false,
     bans: [],
     allies: [],
+    duoPartner: null,
+    duoPartnerLocked: false,
     opponent: null,
     opponentChosen: false
   };
@@ -590,4 +592,42 @@ export async function importLoadout(_page: RunePage, _spells: number[], confirm:
   if (mode === 'fail') throw 'İstemci isteği reddetti (500)';
   if (mode === 'full' && confirm === null) return { kind: 'needsConfirm', id: 3, page: 'Benim sayfam' };
   return { kind: 'done', spells: mode !== 'noSpells' };
+}
+
+// --- LC-016: bot lane synergy (mirrors scoring::duo_synergies / best_synergies) ----
+
+import type { DuoSynergy, Synergy } from './types';
+
+/** Synthetic pairs: supports (if I am support) or marksmen (if ADC) with the partner. */
+export async function duoSynergy(
+  lane: Lane,
+  partner: number,
+  opponent: number | null,
+  exclude: number[]
+): Promise<DuoSynergy> {
+  await delay(400);
+  if (mockFlag(OFFLINE_KEY)) throw 'mock: network unreachable';
+  const tag = lane === 'support' ? 'Support' : lane === 'adc' ? 'Marksman' : null;
+  if (tag === null) return { all: [], best: [], error: null };
+  const { champions } = await loadStatic();
+  const all = champions
+    .filter((c) => c.tags[0] === tag && c.key !== partner)
+    .map((c): Synergy => {
+      const h = hash(partner * 7919 + c.key * 31);
+      const matches = 50 + (h % 6000);
+      const own = 0.47 + ((h >>> 4) % 600) / 10000; // 47% .. 53%
+      const wins = Math.round(matches * (own + ((h >>> 9) % 900) / 10000 - 0.04)); // own -4 .. +5
+      const adjusted = (wins + PRIOR_GAMES / 2) / (matches + PRIOR_GAMES);
+      const synergy = (adjusted - (own + 0.5) / 2) * 100;
+      const counter = opponent !== null && hash(opponent * 13 + c.key) % 4 === 0;
+      return { champion: c.key, wins, matches, synergy, good: synergy >= 1.5, counter };
+    })
+    .filter((s) => s.matches >= 200)
+    .sort((a, b) => b.synergy - a.synergy || b.matches - a.matches);
+  const skip = new Set([...exclude, partner, ...(opponent === null ? [] : [opponent])]);
+  const best = all
+    .filter((s) => s.synergy > 0 && !skip.has(s.champion))
+    .slice(0, 5)
+    .sort((a, b) => Number(b.counter) - Number(a.counter));
+  return { all, best, error: null };
 }

@@ -4,9 +4,10 @@
 //! - `ddragon/{sürüm}/static.json`
 //! - `ugg/patch.json` (`{ ddragonVersion, uggPatch }`)
 //! - `ugg/{yama}/champ_{key}.json` (eşleşmeler + build birlikte)
-//! - `ugg/{yama}/roles.json` (lane filtresi: şampiyon → lane → maç sayısı)
+//! - `ugg/{yama}/roles.json` (lane filtresi: şampiyon → lane → galibiyet ve maç)
 //! - `ugg/{yama}/runes_{key}.json` (LC-013: lane → rün seçenekleri, en çok oynanandan)
 //! - `ugg/{yama}/mu_{key}_{rakip}.json` (LC-013: lane → eşleşmeye özel sayfa ve büyüler)
+//! - `ugg/{yama}/duos_{partner}.json` (LC-016: partnerin lane'i → birlikte oynayanlar)
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;

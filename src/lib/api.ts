@@ -159,3 +159,19 @@ export async function importLoadout(page: RunePage, spells: number[], confirm: n
   if (useMock) return (await mock()).importLoadout(page, spells, confirm);
   return invoke<ImportOutcome>('import_loadout', { page, spells, confirm });
 }
+
+// --- LC-016: bot lane synergy ---------------------------------------------------
+
+import type { DuoSynergy } from './types';
+
+/** Champions for my `lane` that go well with bot lane `partner`; `opponent` marks counters,
+ * `exclude` (bans, taken) is left out of `best`. Other lanes get empty lists. */
+export async function duoSynergy(
+  lane: Lane,
+  partner: number,
+  opponent: number | null,
+  exclude: number[]
+): Promise<DuoSynergy> {
+  if (useMock) return (await mock()).duoSynergy(lane, partner, opponent, exclude);
+  return invoke<DuoSynergy>('duo_synergy', { lane, partner, opponent, exclude });
+}
