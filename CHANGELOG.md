@@ -1,7 +1,7 @@
 # CHANGELOG
 
 ## LC-015 — Rün ve büyü içe aktarma
-Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (uç noktalar gerçek istemcide denenmedi) · İlgili: LC-008, LC-014
+Başlangıç 2026-11-24 · Durum: main'de (merge 36913fb), canlı test edilmedi — uç noktalar gerçek istemcide denenmedi (bkz. TODO.md) · İlgili: LC-008, LC-014
 
 > ### 2026-11-24 · Claude — "İçe aktar" düğmesi
 > - **Ne:** küçük pencerede gösterilen rün sayfası ve büyüler tek tıkla istemciye yazılır: "LOLCounters" sayfasının üstüne (yoksa yeni sayfa; yer yoksa pencerede onay, sonra seçili sayfa). Sayfa seçili yapılır; seçim sürüyorsa büyüler `my-selection` ile ayarlanır (bir tuştaki büyü o tuşta kalır). `ddragon::order_perks` 9'lu listeyi ağaç/sıraya göre dizer; `lcu.rs` bağlıyken REST bağlantısını saklar (`Conn`), `import_target`, `order_spells`, `import_loadout`; yeni komut `import_loadout`. Düğme durumları: İçe aktar / Aktarılıyor… / Aktarıldı / Tekrar dene; sayfa ya da rakip değişince sıfırlanır. Sahte veri: `mockImport`
@@ -17,7 +17,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (uç noktalar
 > - **Commit:** 9d3013d
 
 ## LC-014 — Rün seçenekleri arayüzü: yan yana 3 kart ve sarı etiketler
-Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-009, LC-013, LC-015
+Başlangıç 2026-11-24 · Durum: main'de (merge 31a6037; kart düzeni 36913fb ile), canlı test edilmedi (bkz. TODO.md) · İlgili: LC-009, LC-013, LC-015
 
 > ### 2026-11-24 · Claude — Küçük pencerede tam rün sayfası
 > - **Ne:** kilitten sonra "Rünler" başlığında ‹ • • • › ile 3 seçenek arası geçiş; tam sayfa (ana rün + 3 ana, ikincil ağaç + 2 rün, sağda oran ve maç; parçalar ipucunda); u.gg eşleşme sayfası altın çerçeve, altın nokta ve "★ {rakip} için önerilen" etiketiyle (tıklayınca ona döner); pencere altın seçenekte, yoksa en çok oynananda açılır. Altında büyüler + çekirdek eşyalar tek satırda (genel build oranı ipucunda; "Genel build" satırı kalktı). Rünler maç verisinden ayrı istenir; yükleniyor / alınamadı (Tekrar dene) / veri yok durumları. Sahte veri: `mockRunesFail`, `mockRunesEmpty`
@@ -36,7 +36,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Commit:** 7c2418e
 
 ## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
-Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
+Başlangıç 2026-11-24 · Durum: main'de (merge b20ab2b), canlı test edilmedi (bkz. TODO.md) · İlgili: LC-002, LC-014, LC-015
 
 > ### 2026-11-24 · Claude — u.gg `builds` ve eşleşmeye özel overview
 > - **Ne:** `ugg.rs` `builds` dosyasından lane başına rün gruplarını (maça göre, her grubun en çok oynanan sayfası) ve `overview/.../matchups/{ben}_{rakip}` dosyasından eşleşme sayfasını + büyüleri okur (oradaki 6. eleman kayıp olduğu için okunmaz); `scoring::pick_rune_options` (ilk 3; ≥100 maçlı eşleşme sayfası aynı gruptaki seçeneğin, yoksa 3.'nün yerine geçer ve altın olur); yeni komut `rune_options` (bellek → disk `runes_{key}.json` / `mu_{key}_{rakip}.json` → ağ); `types.ts`, `api.ts`, sahte veri
@@ -54,14 +54,14 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > ### 2026-11-24 · Claude — → LC-014 kart düzeniyle değiştirildi (`RuneOptions.best`: "Önerilen" kart)
 
 ## LC-012 — Küçük pencere seçim başında lane'siz açılıyor
-Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
+Başlangıç 2026-11-24 · Durum: main'de (merge ac30ea7), canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
 
 > ### 2026-11-24 · Claude — Fix: seçimden önce gelen oturum saklanıyor
 > - **Ne:** istemci oturumu `ChampSelect` aşamasından önce gönderirse (`ReadyCheck` vb. sırasında) oturum artık atılmıyor, saklanıyor (`Inner.pending`) ve aşama gelince uygulanıyor; oyun başladıktan sonra gelen oturum eskisi gibi yok sayılıyor (`session_action`). Geliştirme sürümü gelen olayların sırasını terminale yazıyor
 > - **Neden:** kullanıcı seçim başında lane'in geç geldiğini / takıldığını gördü; araştırma (3 bakış açısı + doğrulama) en olası nedeni bu buldu: pencere lane'siz açılıp "Lane'in belli değil" gösteriyor, lane ancak istemcinin sonraki güncellemesiyle geliyordu. Olay sırası gerçek istemcide henüz görülmedi
 > - **Etkilenen:** LC-008 (`lcu.rs` `Inner::apply`)
 > - **Dosyalar:** src-tauri/src/lcu.rs, docs/data-sources.md, TODO.md
-> - **Commit:** —
+> - **Commit:** 5b8dfc9
 
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
 Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
