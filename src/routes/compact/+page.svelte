@@ -176,7 +176,8 @@
 
   // --- LC-014: rune options (after lock-in) ---
   // Fetched apart from the matchup score so a slow `builds` download does not hold the
-  // score back. Opens on the gold (matchup) option, else on the most played one.
+  // score back. Three cards side by side; the selected one (opens on the matchup option, else
+  // on "Önerilen", else the first) is what "İçe aktar" writes.
   type RuneState =
     | { kind: 'none' }
     | { kind: 'loading' }
@@ -203,7 +204,7 @@
       (d) => {
         if (my !== runeSeq) return;
         runeState = { kind: 'ok', data: d, key };
-        runeIdx = d.gold ?? 0;
+        runeIdx = d.gold ?? d.best ?? 0;
       },
       (e) => {
         if (my === runeSeq) runeState = { kind: 'error', message: errorText(e) };
@@ -215,6 +216,7 @@
   // highlight for the wrong opponent, and nothing to import
   const runeStale = $derived(runeState.kind === 'ok' && runeState.key !== runeKey);
   const runeGold = $derived(runeState.kind === 'ok' && !runeStale ? runeState.data.gold : null);
+  const runeBest = $derived(runeState.kind === 'ok' && !runeStale ? runeState.data.best : null);
   const runeError = $derived(runeState.kind === 'ok' ? runeState.data.error : null);
   const page = $derived<RunePage | undefined>(runeList[runeIdx]);
   const treePerks = (p: RunePage, tree: number) =>
@@ -222,21 +224,41 @@
       .map((id) => data?.runes[String(id)])
       .filter((r): r is Rune => !!r && r.tree === tree)
       .sort((a, b) => a.slot - b.slot);
-  const primaryPerks = $derived(page ? treePerks(page, page.primaryTree) : []);
-  const secondaryPerks = $derived(page ? treePerks(page, page.secondaryTree) : []);
-  const secondaryTree = $derived(page && data ? data.trees[String(page.secondaryTree)] : undefined);
-  const shardTip = $derived(
-    page && data
-      ? `Parçalar: ${page.shards.map((id) => data!.shards[String(id)] ?? `#${id}`).join(' · ')}`
-      : ''
-  );
-  const pageTip = (p: RunePage, i: number) => {
-    const tree = data?.trees[String(p.primaryTree)]?.name ?? '';
+  /** Card tooltip: keystone · secondary tree, then the shards. */
+  const cardTip = (p: RunePage) => {
+    const ks = treePerks(p, p.primaryTree)[0]?.name ?? data?.trees[String(p.primaryTree)]?.name ?? '';
     const tree2 = data?.trees[String(p.secondaryTree)]?.name ?? '';
-    const ks = treePerks(p, p.primaryTree)[0]?.name ?? tree;
-    const gold = i === runeGold && opponent !== null ? ` · ${champName(opponent)} için önerilen` : '';
-    return `${i + 1}. seçenek: ${ks} · ${tree2}${gold}`;
+    const shards = p.shards.length
+      ? `Parçalar: ${p.shards.map((id) => data?.shards[String(id)] ?? `#${id}`).join(' · ')}`
+      : 'Parçalar alınamadı';
+    return `${ks} + ${tree2} · ${shards}`;
   };
+  /** Screen-reader name of a card: badges, every rune, win rate, shards. */
+  const cardLabel = (p: RunePage, i: number) => {
+    const badges = [i === runeBest ? 'Önerilen' : '', i === runeGold ? 'Eşleşmeye özel' : '']
+      .filter(Boolean)
+      .map((b) => `, ${b}`)
+      .join('');
+    const names = [...treePerks(p, p.primaryTree), ...treePerks(p, p.secondaryTree)].map((r) => r.name);
+    const stats = p.matches > 0 ? ` · ${formatPercent(p.wins / p.matches)} kazanma, ${formatCount(p.matches)} maç` : '';
+    return `${i + 1}. rün sayfası${badges}: ${names.join(', ')}${stats} · ${cardTip(p)}`;
+  };
+  /** Radiogroup keys: arrows move the selection (and focus), Enter/Space select. */
+  function cardKey(e: KeyboardEvent, i: number) {
+    const n = runeList.length;
+    const steps: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    const step = steps[e.key];
+    if (step !== undefined) {
+      e.preventDefault();
+      const j = (i + step + n) % n;
+      runeIdx = j;
+      const sibling = (e.currentTarget as HTMLElement).parentElement?.children[j];
+      if (sibling instanceof HTMLElement) sibling.focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      runeIdx = i;
+    }
+  }
 
   // --- build pieces (after lock-in) ---
   const mineRec = $derived(result.kind === 'mine' ? result.rec : null);
@@ -526,40 +548,6 @@
         <section class="runes" aria-label="Rün seçenekleri">
           <div class="runes-head">
             <h4 class="section-title">Rünler</h4>
-            {#if runeList.length > 1}
-              <div class="pager">
-                <button
-                  type="button"
-                  class="pg"
-                  aria-label="Önceki rün sayfası"
-                  disabled={runeIdx === 0}
-                  onclick={() => (runeIdx = Math.max(0, runeIdx - 1))}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
-                </button>
-                {#each runeList as p, i (i)}
-                  <button
-                    type="button"
-                    class="dot"
-                    class:on={i === runeIdx}
-                    class:gold={i === runeGold}
-                    aria-label={pageTip(p, i)}
-                    aria-current={i === runeIdx}
-                    use:tooltip={pageTip(p, i)}
-                    onclick={() => (runeIdx = i)}
-                  ></button>
-                {/each}
-                <button
-                  type="button"
-                  class="pg"
-                  aria-label="Sonraki rün sayfası"
-                  disabled={runeIdx >= runeList.length - 1}
-                  onclick={() => (runeIdx = Math.min(runeList.length - 1, runeIdx + 1))}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg>
-                </button>
-              </div>
-            {/if}
             {#if runeError !== null}
               <button
                 type="button"
@@ -569,17 +557,6 @@
                 onclick={() => retries++}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4.5V9h-4.5" /></svg>
-              </button>
-            {/if}
-            {#if runeGold !== null && opponent !== null}
-              <button
-                type="button"
-                class="gold-tag"
-                class:dim={runeIdx !== runeGold}
-                use:tooltip={'u.gg bu eşleşmede bu sayfayı öneriyor'}
-                onclick={() => (runeIdx = runeGold ?? 0)}
-              >
-                ★ {champName(opponent)} için önerilen
               </button>
             {/if}
           </div>
@@ -592,33 +569,69 @@
               </button>
             </div>
           {:else if runeState.kind !== 'ok'}
-            <div class="page skeleton" aria-busy="true" aria-label="Rünler yükleniyor"></div>
+            <div class="cards" aria-busy="true" aria-label="Rünler yükleniyor">
+              {#each [0, 1, 2] as i (i)}<div class="card skeleton"></div>{/each}
+            </div>
           {:else if !page}
             <div class="page empty"><span>Bu lane için rün verisi yok</span></div>
           {:else}
-            <div class="page" class:gold={runeIdx === runeGold} class:stale={runeStale} aria-busy={runeStale}>
-              <div class="tree" aria-label="Ana ağaç">
-                {#each primaryPerks as r, i (r.id)}
-                  <GameIcon src={r.icon} name={r.name} size={i === 0 ? 30 : 20} shape="round" />
-                {/each}
-              </div>
-              <span class="tsep" aria-hidden="true"></span>
-              <div class="tree" aria-label="İkincil ağaç">
-                {#if secondaryTree}
-                  <span class="tree2">
-                    <GameIcon src={secondaryTree.icon} name={secondaryTree.name} size={16} shape="round" />
+            <div class="cards" role="radiogroup" aria-label="Rün sayfası seç" aria-busy={runeStale}>
+              {#each runeList as p, i (i)}
+                {@const prim = treePerks(p, p.primaryTree)}
+                {@const sec = treePerks(p, p.secondaryTree)}
+                {@const tree2 = data?.trees[String(p.secondaryTree)]}
+                <!-- radiogroup: one tab stop (the selected card), arrows move; icons inside are
+                     mouse-tooltip only (not focusable), their names are in the card's label -->
+                <div
+                  class="card"
+                  class:sel={i === runeIdx}
+                  class:gold={i === runeGold || i === runeBest}
+                  class:stale={runeStale}
+                  role="radio"
+                  tabindex={i === runeIdx ? 0 : -1}
+                  aria-checked={i === runeIdx}
+                  aria-label={cardLabel(p, i)}
+                  onclick={() => (runeIdx = i)}
+                  onkeydown={(e) => cardKey(e, i)}
+                >
+                  <span class="badges">
+                    {#if i === runeBest}
+                      <span class="badge" use:tooltip={'Bu sayfalar içinde kazanma oranı en yüksek olan'}>★ Önerilen</span>
+                    {/if}
+                    {#if i === runeGold}
+                      <span
+                        class="badge"
+                        use:tooltip={opponent !== null ? `u.gg'nin ${champName(opponent)} eşleşmesi için sayfası` : null}
+                      >Eşleşmeye özel</span>
+                    {/if}
                   </span>
-                {/if}
-                {#each secondaryPerks as r (r.id)}
-                  <GameIcon src={r.icon} name={r.name} size={20} shape="round" />
-                {/each}
-              </div>
-              <span class="pstats" use:tooltip={shardTip}>
-                {#if page.matches > 0}
-                  <b>{formatPercent(page.wins / page.matches)}</b>
-                  <span>{formatCount(page.matches)} maç</span>
-                {/if}
-              </span>
+                  {#if prim[0]}
+                    <GameIcon src={prim[0].icon} name={prim[0].name} size={30} shape="round" focusable={false} />
+                  {/if}
+                  <span class="tree">
+                    {#each prim.slice(1) as r (r.id)}
+                      <GameIcon src={r.icon} name={r.name} size={18} shape="round" focusable={false} />
+                    {/each}
+                  </span>
+                  <span class="tsep" aria-hidden="true"></span>
+                  <span class="tree">
+                    {#if tree2}
+                      <span class="tree2">
+                        <GameIcon src={tree2.icon} name={tree2.name} size={14} shape="round" focusable={false} />
+                      </span>
+                    {/if}
+                    {#each sec as r (r.id)}
+                      <GameIcon src={r.icon} name={r.name} size={18} shape="round" focusable={false} />
+                    {/each}
+                  </span>
+                  <span class="pstats" use:tooltip={cardTip(p)}>
+                    {#if p.matches > 0}
+                      <b>{formatPercent(p.wins / p.matches)}</b>
+                      <span>{formatCount(p.matches)} maç</span>
+                    {/if}
+                  </span>
+                </div>
+              {/each}
             </div>
           {/if}
         </section>
@@ -1168,121 +1181,83 @@
   .runes-head .section-title {
     font-size: 9.5px;
   }
-  .pager {
+  /* three cards side by side; gold = has a badge, teal = selected (what "İçe aktar" writes) */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .card {
+    position: relative;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 2px;
-  }
-  .pg {
-    display: grid;
-    place-items: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 2px;
-    color: var(--gold);
-    transition:
-      color var(--t-fast) var(--ease),
-      background var(--t-fast) var(--ease);
-  }
-  .pg svg {
-    width: 12px;
-    height: 12px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .pg:hover:not(:disabled) {
-    color: var(--gold-light);
-    background: rgba(200, 170, 110, 0.12);
-  }
-  .pg:disabled {
-    color: #3a4048;
-    cursor: default;
-  }
-  .dot {
-    display: grid;
-    place-items: center;
-    width: 14px;
-    height: 18px;
-  }
-  .dot::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border: 1px solid var(--gold-dark);
-    border-radius: 50%;
-    background: transparent;
-    transition:
-      background var(--t-fast) var(--ease),
-      border-color var(--t-fast) var(--ease),
-      transform var(--t-fast) var(--ease);
-  }
-  .dot:hover::before {
-    border-color: var(--gold-light);
-  }
-  .dot.on::before {
-    border-color: var(--gold-light);
-    background: var(--gold-light);
-    transform: scale(1.15);
-  }
-  .dot.gold::before {
-    border-color: #f0c050;
-    box-shadow: 0 0 5px rgba(240, 192, 80, 0.6);
-  }
-  .dot.gold.on::before {
-    background: #f0c050;
-  }
-  .gold-tag {
-    margin-left: auto;
+    gap: 4px;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    height: 18px;
-    padding: 0 8px;
-    border: 1px solid rgba(240, 192, 80, 0.55);
-    border-radius: 9px;
-    background: rgba(240, 192, 80, 0.1);
-    color: #f0c050;
-    font-size: 10.5px;
-    font-weight: 600;
-    transition:
-      opacity var(--t-fast) var(--ease),
-      background var(--t-fast) var(--ease);
-  }
-  .gold-tag.dim {
-    opacity: 0.55;
-  }
-  .gold-tag:hover {
-    opacity: 1;
-    background: rgba(240, 192, 80, 0.18);
-  }
-  .page {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 44px;
-    padding: 0 10px 0 7px;
+    min-height: 136px;
+    padding: 19px 4px 6px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: linear-gradient(180deg, rgba(15, 26, 43, 0.95), rgba(10, 20, 40, 0.95));
+    cursor: pointer;
     transition:
       border-color var(--t-fast) var(--ease),
-      box-shadow var(--t-fast) var(--ease);
+      box-shadow var(--t-fast) var(--ease),
+      background var(--t-fast) var(--ease);
   }
-  .page.gold {
-    border-color: #f0c050;
+  .card:hover {
+    border-color: var(--gold-mid);
+  }
+  .card:focus-visible {
+    outline: 1px solid var(--teal);
+    outline-offset: 1px;
+  }
+  .card.gold {
+    border-color: rgba(240, 192, 80, 0.75);
     background:
-      radial-gradient(ellipse 60% 140% at 0% 0%, rgba(240, 192, 80, 0.12), transparent 60%),
+      radial-gradient(ellipse 90% 60% at 50% 0%, rgba(240, 192, 80, 0.12), transparent 70%),
+      linear-gradient(180deg, rgba(19, 33, 58, 0.97), rgba(10, 20, 40, 0.97));
+  }
+  .card.sel {
+    border-color: var(--teal);
+    background:
+      radial-gradient(ellipse 90% 60% at 50% 0%, rgba(10, 200, 185, 0.12), transparent 70%),
       linear-gradient(180deg, rgba(19, 33, 58, 0.97), rgba(10, 20, 40, 0.97));
     box-shadow:
-      0 0 0 1px rgba(240, 192, 80, 0.25),
-      0 0 12px rgba(240, 192, 80, 0.3);
+      0 0 0 1px rgba(10, 200, 185, 0.25),
+      0 0 10px rgba(10, 200, 185, 0.22);
   }
-  .page.stale {
+  .card.stale {
     opacity: 0.5;
+  }
+  .card.skeleton {
+    border-color: #161d26;
+    cursor: default;
+  }
+  .badges {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    left: 3px;
+    display: flex;
+    flex-wrap: wrap-reverse;
+    justify-content: flex-end;
+    gap: 2px;
+    pointer-events: none;
+  }
+  .badge {
+    height: 13px;
+    padding: 0 5px;
+    border: 1px solid rgba(240, 192, 80, 0.6);
+    border-radius: 7px;
+    background: rgba(240, 192, 80, 0.14);
+    color: #f0c050;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 11px;
+    white-space: nowrap;
+    pointer-events: auto;
+    cursor: default;
   }
   .rerr {
     display: grid;
@@ -1305,18 +1280,22 @@
     color: var(--gold-light);
     background: rgba(200, 170, 110, 0.12);
   }
+  /* error / no-data box in place of the cards */
   .page.empty {
+    display: flex;
+    align-items: center;
     justify-content: center;
     gap: 12px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(15, 26, 43, 0.95), rgba(10, 20, 40, 0.95));
     color: var(--muted);
     font-size: 12px;
   }
   .page.empty[role='alert'] {
     color: var(--hard);
     font-weight: 600;
-  }
-  .page.skeleton {
-    border-color: #161d26;
   }
   .tree {
     display: flex;
@@ -1328,8 +1307,8 @@
     background: #0b111a;
   }
   .tsep {
-    width: 1px;
-    height: 24px;
+    width: 60%;
+    height: 1px;
     background: #222a35;
   }
   .tree2 {
@@ -1340,21 +1319,20 @@
     background: transparent;
   }
   .pstats {
-    margin-left: auto;
+    margin-top: auto;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: center;
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    cursor: default;
   }
   .pstats b {
     color: var(--text);
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
   }
-  .page.gold .pstats b {
+  .card.gold .pstats b {
     color: #f0c050;
   }
   .pstats span {

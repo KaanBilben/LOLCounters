@@ -748,6 +748,8 @@ pub struct RuneOptions {
     pub options: Vec<ugg::RunePage>,
     /// Eşleşmeye özel sayfa olan seçenek (`scoring::pick_rune_options`); yoksa `None`.
     pub gold: Option<usize>,
+    /// "Önerilen" seçenek (`scoring::best_rune_option`); yoksa `None`.
+    pub best: Option<usize>,
     /// Altın seçenek varsa eşleşmenin büyüleri, yoksa lane'in genel büyüleri.
     pub spells: Vec<i64>,
     /// Bir kaynak alınamadı ve liste eksik olabilir (ör. tek sayfa, parçasız): arayüz yeniden
@@ -825,7 +827,7 @@ async fn rune_options(
     if list.is_empty() {
         return match error {
             Some(e) => Err(e),
-            None => Ok(RuneOptions { options: Vec::new(), gold: None, spells: Vec::new(), error: None }),
+            None => Ok(RuneOptions { options: Vec::new(), gold: None, best: None, spells: Vec::new(), error: None }),
         };
     }
     let (options, gold) = scoring::pick_rune_options(&list, mu_page.as_ref().map(|m| &m.runes));
@@ -833,7 +835,8 @@ async fn rune_options(
         (Some(_), Some(m)) if m.spells.len() == 2 => m.spells.clone(),
         _ => overview.map(|b| b.spells).unwrap_or_default(),
     };
-    Ok(RuneOptions { options, gold, spells, error })
+    let best = scoring::best_rune_option(&options, gold);
+    Ok(RuneOptions { options, gold, best, spells, error })
 }
 
 /// LC-015: küçük penceredeki "İçe aktar". Sayfayı istemcinin sırasına dizer (`order_perks`) ve

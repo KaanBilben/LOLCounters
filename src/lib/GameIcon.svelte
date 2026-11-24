@@ -9,7 +9,8 @@
     size = 32,
     shape = 'square',
     crop = false,
-    tip = true
+    tip = true,
+    focusable = true
   }: {
     src: string;
     name: string;
@@ -17,6 +18,8 @@
     shape?: 'square' | 'round';
     crop?: boolean;
     tip?: boolean;
+    /** false inside an interactive parent (e.g. a rune card): mouse tooltip only, no tab stop. */
+    focusable?: boolean;
   } = $props();
 
   let failed = $state(false);
@@ -33,9 +36,9 @@
   class:crop
   style:width="{size}px"
   style:height="{size}px"
-  tabindex={tip ? 0 : undefined}
-  role={tip ? 'img' : undefined}
-  aria-label={tip ? name : undefined}
+  tabindex={tip && focusable ? 0 : undefined}
+  role={tip && focusable ? 'img' : undefined}
+  aria-label={tip && focusable ? name : undefined}
   use:tooltip={tip ? name : null}
 >
   {#if failed}

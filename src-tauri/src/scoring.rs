@@ -19,6 +19,8 @@ pub const BAN_SUGGESTIONS: usize = 3;
 pub const RUNE_OPTIONS: usize = 3;
 /// Eşleşmeye özel sayfa bundan az maçlıysa altın vurgu yapılmaz.
 pub const MATCHUP_PAGE_MIN_GAMES: u32 = 100;
+/// "Önerilen" rün kartı için gereken en az maç (LC-014).
+pub const RECOMMENDED_PAGE_MIN_GAMES: u32 = 100;
 
 #[derive(Debug, Clone)]
 pub struct Candidate {
@@ -124,4 +126,20 @@ pub fn pick_rune_options(general: &[RunePage], matchup: Option<&RunePage>) -> (V
     }
     let i = opts.iter().position(|o| o == mu);
     (opts, i)
+}
+
+/// "Önerilen" kart (LC-014): en az `RECOMMENDED_PAGE_MIN_GAMES` maçlı seçenekler içinde kazanma
+/// oranı en yüksek olan; oran eşitse maçı çok olan. Eşleşme kartı (`gold`) aday değildir: oranı
+/// yalnızca bu rakibe karşı, genel sayfalarla aynı ölçekte değil.
+pub fn best_rune_option(opts: &[RunePage], gold: Option<usize>) -> Option<usize> {
+    opts.iter()
+        .enumerate()
+        .filter(|&(i, p)| Some(i) != gold && p.matches >= RECOMMENDED_PAGE_MIN_GAMES)
+        .max_by(|(_, a), (_, b)| {
+            // a.wins/a.matches ile b.wins/b.matches çapraz çarpımla (kayan nokta yok)
+            let ra = u64::from(a.wins) * u64::from(b.matches);
+            let rb = u64::from(b.wins) * u64::from(a.matches);
+            ra.cmp(&rb).then(a.matches.cmp(&b.matches))
+        })
+        .map(|(i, _)| i)
 }

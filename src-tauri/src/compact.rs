@@ -11,7 +11,8 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 pub const LABEL: &str = "compact";
 /// Mantıksal piksel.
 pub const WIDTH: f64 = 380.0;
-pub const HEIGHT: f64 = 260.0;
+/// LC-014: rün kartları (yan yana 3 dikey kart) sığsın diye 260'tan uzatıldı.
+pub const HEIGHT: f64 = 356.0;
 /// Çalışma alanı kenarına uzaklık.
 pub const MARGIN: f64 = 12.0;
 /// `--bg` (#010a13): pencere WebView çizilmeden önce de koyu görünsün.

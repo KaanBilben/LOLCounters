@@ -141,6 +141,8 @@ export interface ChampSelectState {
 export interface RuneOptions {
   options: RunePage[];
   gold: number | null;
+  /** LC-014 "Önerilen": highest win rate of the non-matchup options with enough games. */
+  best: number | null;
   /** The matchup's spells when `gold` is set, else the lane's general spells. */
   spells: number[];
   /** A source failed and the list may be incomplete (one page, no shards): offer a retry. */

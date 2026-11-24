@@ -6,8 +6,8 @@ League of Legends için hafif bir masaüstü counter öneri uygulaması (Windows
 2. Şampiyon seçimine girince ekranın sağ altında küçük bir pencere açılır:
    ban aşamasında oynamak için gösterdiğin şampiyonun en zor 3 rakibini
    banlaman için listeler; kilitlemeden önce havuzundaki şampiyonları rakibine karşı sıralar (tercih
-   sıran + eşleşme kazanma oranı), kilitleyince en çok oynanan 3 rün sayfası arasında gezdirir
-   (rakibine göre önerilen altınla işaretli), büyü ve eşya önerir; "İçe aktar" ile
+   sıran + eşleşme kazanma oranı), kilitleyince en çok oynanan 3 rün sayfasını yan yana
+   kartlarla gösterir ("Önerilen" ve "Eşleşmeye özel" sarı etiketli), büyü ve eşya önerir; "İçe aktar" ile
    seçtiğin rün sayfasını ve büyüleri istemciye yazar.
    Oyun başlayınca kendiliğinden kapanır.
 3. LoL istemcisi kapalıyken ana pencerede lane'ini ve rakibini elle de
@@ -112,7 +112,7 @@ Gerekenler: Rust, Node.js, WebView2 (Windows 11'de hazır gelir).
   rakip tahmini) ve küçük pencerede gösterilir; Normal Draft'ta canlı test
   edildi.
 - Eşya önerileri şampiyonun o lane'deki genel build'idir; rünlerde rakibe özel
-  sayfa (u.gg, en az 100 maç) altınla işaretlenir. Matchup ipuçları henüz yok.
+  sayfa (u.gg, en az 100 maç) "Eşleşmeye özel" etiketi alır. Matchup ipuçları henüz yok.
 
 ## Lisans ve yasal not
 

@@ -16,7 +16,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (uç noktalar
 > - **Dosyalar:** src-tauri/src/lcu.rs, src/routes/compact/+page.svelte, docs/data-sources.md, TODO.md
 > - **Commit:** 9d3013d
 
-## LC-014 — Rün seçenekleri arayüzü: 3 sayfa, geçiş ve altın vurgu
+## LC-014 — Rün seçenekleri arayüzü: yan yana 3 kart ve sarı etiketler
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-009, LC-013, LC-015
 
 > ### 2026-11-24 · Claude — Küçük pencerede tam rün sayfası
@@ -27,6 +27,13 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Commit:** 51ac2a9
 >
 > ### 2026-11-24 · Claude — → LC-013 ve LC-015 düzeltmeleriyle değiştirildi
+>
+> ### 2026-11-24 · Claude — Değişiklik: ‹ › geçiş yerine yan yana 3 dikey kart
+> - **Ne:** LoL'ün önerilen sayfalarına benzer 3 dikey kart (üstte ana rün, altında 3 ana rün, çizgi, ikincil ağaç + 2 rün, en altta oran ve maç); sağ üstte sarı "★ Önerilen" (`best`) ve "Eşleşmeye özel" (`gold`) etiketleri; karta tıklayınca seçilir (mavi çerçeve), "İçe aktar" seçili kartı yazar; açılışta eşleşme kartı, yoksa "Önerilen" seçili. ‹ ›, noktalar ve "★ {rakip} için önerilen" etiketi kalktı. Kartlar bir radiogroup: tek sekme durağı, ok tuşlarıyla geçiş; kart etiketi etiketleri, rün adlarını ve oranı okur; içteki ikonlar odaklanmaz (`GameIcon` yeni `focusable` seçeneği). Küçük pencere 380×260 → 380×356 (`compact.rs` `HEIGHT`)
+> - **Neden:** kullanıcı isteği: 3 seçeneği aynı anda görmek, LoL istemcisine benzer görünüm
+> - **Etkilenen:** LC-013 (`RuneOptions.best`, `scoring::best_rune_option`), LC-009 (küçük pencere boyu)
+> - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/GameIcon.svelte, src-tauri/src/compact.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, docs/scoring.md, README.md, TODO.md
+> - **Commit:** —
 
 ## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
@@ -43,6 +50,8 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Etkilenen:** LC-014 (rün başlığında yeniden dene simgesi)
 > - **Dosyalar:** src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, src/routes/compact/+page.svelte, docs/data-sources.md, CLAUDE.md
 > - **Commit:** 9d3013d
+>
+> ### 2026-11-24 · Claude — → LC-014 kart düzeniyle değiştirildi (`RuneOptions.best`: "Önerilen" kart)
 
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
 Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
@@ -89,6 +98,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
 > ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
 >
 > ### 2026-11-24 · Claude — → LC-014 tarafından değiştirildi
+>
+> ### 2026-11-24 · Claude — → LC-014 kart düzeniyle değiştirildi (pencere 380×356)
 
 ## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
