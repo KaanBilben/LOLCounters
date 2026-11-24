@@ -14,7 +14,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (uç noktalar
 > - **Ne:** onaylanan kullanıcı sayfasında PUT reddedilirse artık `DELETE` + `POST` yapılmaz, hata gösterilir (yedek yol yalnızca uygulamanın "LOLCounters" sayfası için); `import_loadout` tek seferde bir tane çalışır (üst üste tıklama ikinci sayfa açmaz). Arayüz: rakip ya da lane değişince yeni rünler gelene kadar eski sayfa soluk, altın etiket gizli ve içe aktarma kapalı (eski rakibin sayfası yeni rakibe "önerilen" diye yazılmaz); parçası olmayan sayfada düğme kapalı, nedeni ipucunda. Belge: takımın büyüleri yalnızca içe aktarmada çözümleniyor (yalnızca benimki kullanılıyor); TODO.md'ye canlı test adımları
 > - **Neden:** 4 yönlü inceleme + şüpheci doğrulama; en ciddisi, geçersiz bir sayfada kullanıcının onayladığı sayfanın kalıcı silinebilmesiydi
 > - **Dosyalar:** src-tauri/src/lcu.rs, src/routes/compact/+page.svelte, docs/data-sources.md, TODO.md
-> - **Commit:** —
+> - **Commit:** 9d3013d
 
 ## LC-014 — Rün seçenekleri arayüzü: 3 sayfa, geçiş ve altın vurgu
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-009, LC-013, LC-015
@@ -42,7 +42,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** inceleme: geçici bir hata seçim boyunca tek sayfa / parçasız sayfa bırakıyordu
 > - **Etkilenen:** LC-014 (rün başlığında yeniden dene simgesi)
 > - **Dosyalar:** src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, src/routes/compact/+page.svelte, docs/data-sources.md, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** 9d3013d
 
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
 Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
