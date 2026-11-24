@@ -8,7 +8,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** kullanıcı isteği: partnerle iyi giden şampiyonları görmek; havuzda yoksa da öneri
 > - **Etkilenen:** LC-009 (küçük pencere sütunu artık pencereden geniş olamaz: `grid-template-columns: minmax(0, 1fr)`)
 > - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/mock.ts, README.md, CLAUDE.md, TODO.md
-> - **Commit:** —
+> - **Commit:** d267cdb
 
 ## LC-016 — Bot lane sinerjisi verisi
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (arayüzü LC-017 ile birlikte) · İlgili: LC-006, LC-008, LC-017
