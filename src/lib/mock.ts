@@ -15,6 +15,10 @@
 // against Ahri (103), who has none; "Önerilen" (best) is then the 1st, vs Ahri the 2nd. Only the runes fail with 'lolcounters.mockRunesFail' = '1';
 // 'lolcounters.mockRunesEmpty' = '1' returns no options; 'lolcounters.mockRunesPartial' = '1' one page
 // without shards and an error (a source failed).
+// Bot lane synergy (LC-017): 'lolcounters.mockLane' = 'adc' | 'support' puts me on the bot lane
+// with every enemy shown; 'lolcounters.mockPartner' = 'none' | 'hover' | 'locked' sets the partner
+// (Kai'Sa / Nautilus). 'lolcounters.mockSynergyFail' = '1' fails the synergy request,
+// 'lolcounters.mockSynergyPartial' = '1' returns it without counters and with an error.
 
 import type {
   AutostartState,
@@ -362,6 +366,30 @@ let mockLane: Lane | null = null;
 const MOCK_LANE_ORDER: Lane[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 const champSelectListeners = new Set<(s: ChampSelectState) => void>();
 
+/** LC-017: 'lolcounters.mockLane' = 'adc' | 'support' puts me on the bot lane (default top). */
+function mockBotLane(): 'adc' | 'support' | null {
+  try {
+    const v = localStorage.getItem('lolcounters.mockLane');
+    if (v === 'adc' || v === 'support') return v;
+  } catch {
+    /* storage blocked */
+  }
+  return null;
+}
+
+/** LC-017: the bot lane partner: 'lolcounters.mockPartner' = 'none' | 'hover' | 'locked'
+ * (default: 'locked' in the 'locked' mode, else 'hover'). Kai'Sa for a support, Nautilus for an ADC. */
+function mockPartner(bot: 'adc' | 'support', locked: boolean): { duoPartner: number | null; duoPartnerLocked: boolean } {
+  let v: string | null = null;
+  try {
+    v = localStorage.getItem('lolcounters.mockPartner');
+  } catch {
+    /* storage blocked */
+  }
+  if (v === 'none') return { duoPartner: null, duoPartnerLocked: false };
+  return { duoPartner: bot === 'support' ? 145 : 111, duoPartnerLocked: v === 'locked' || (v === null && locked) };
+}
+
 function mockChampSelectMode(): MockChampSelect {
   try {
     const v = localStorage.getItem(CHAMP_SELECT_KEY);
@@ -378,7 +406,7 @@ async function mockChampSelectState(): Promise<ChampSelectState> {
   const base: ChampSelectState = {
     connected: mode !== 'none',
     active: mode !== 'none',
-    myLane: mode === 'none' || mode === 'blind' ? null : 'top',
+    myLane: mode === 'none' || mode === 'blind' ? null : (mockBotLane() ?? 'top'),
     myChampion: null,
     myIntent: null,
     locked: false,
@@ -392,18 +420,25 @@ async function mockChampSelectState(): Promise<ChampSelectState> {
     opponentChosen: false
   };
   if (mode === 'none' || mode === 'waiting') return base;
-  const pool = (await getSettings()).pools.top ?? [];
+  const pool = (await getSettings()).pools[base.myLane ?? 'top'] ?? [];
+  const bot = base.myLane === 'adc' || base.myLane === 'support' ? base.myLane : null;
+  const duo = bot ? mockPartner(bot, mode === 'locked') : { duoPartner: null, duoPartnerLocked: false };
+  const allies = duo.duoPartner === null ? MOCK_ALLIES : [...MOCK_ALLIES, duo.duoPartner];
+  // my default champion: Lulu as support, Ezreal as ADC, else Darius / Malphite
+  const myDefault = bot === 'support' ? 117 : bot === 'adc' ? 81 : null;
   if (mode === 'banning' || mode === 'banningNoIntent') {
     return {
       ...base,
       myIntent: mode === 'banning' ? (pool[0] ?? 86) : null,
       banPhase: true,
       bans: MOCK_BANS,
-      allies: MOCK_ALLIES
+      allies,
+      ...duo
     };
   }
   const locked = mode === 'locked';
-  const enemies = locked ? MOCK_ENEMIES : MOCK_ENEMIES.slice(0, 3);
+  // on the bot lane every enemy is shown, so my lane opponent (Jinx / Thresh) is known
+  const enemies = locked || bot ? MOCK_ENEMIES : MOCK_ENEMIES.slice(0, 3);
   // the guess needs my lane; in blind pick only the hand-picked one (setMyLane)
   const lane = base.myLane ?? mockLane;
   const laneEnemy = lane ? MOCK_ENEMIES[MOCK_LANE_ORDER.indexOf(lane)] : undefined;
@@ -411,12 +446,13 @@ async function mockChampSelectState(): Promise<ChampSelectState> {
   const opponent = mockOpponent !== undefined && enemies.includes(mockOpponent) ? mockOpponent : guess;
   return {
     ...base,
-    myChampion: locked ? 122 : null,
-    myIntent: locked ? null : (pool[1] ?? pool[0] ?? 86),
+    myChampion: locked ? (myDefault ?? 122) : null,
+    myIntent: locked ? null : (pool[1] ?? pool[0] ?? myDefault ?? 86),
     locked,
     enemies,
     bans: MOCK_BANS,
-    allies: MOCK_ALLIES,
+    allies,
+    ...duo,
     opponent,
     opponentChosen: opponent !== null && opponent === mockOpponent
   };
@@ -606,7 +642,7 @@ export async function duoSynergy(
   exclude: number[]
 ): Promise<DuoSynergy> {
   await delay(400);
-  if (mockFlag(OFFLINE_KEY)) throw 'mock: network unreachable';
+  if (mockFlag(OFFLINE_KEY) || mockFlag('lolcounters.mockSynergyFail')) throw 'mock: network unreachable';
   const tag = lane === 'support' ? 'Support' : lane === 'adc' ? 'Marksman' : null;
   if (tag === null) return { all: [], best: [], error: null };
   const { champions } = await loadStatic();
@@ -629,5 +665,6 @@ export async function duoSynergy(
     .filter((s) => s.synergy > 0 && !skip.has(s.champion))
     .slice(0, 5)
     .sort((a, b) => Number(b.counter) - Number(a.counter));
-  return { all, best, error: null };
+  const error = mockFlag('lolcounters.mockSynergyPartial') ? 'mock: matchups timed out' : null;
+  return { all, best: error ? best.map((b) => ({ ...b, counter: false })) : best, error };
 }

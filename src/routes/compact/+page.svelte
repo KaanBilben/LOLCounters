@@ -4,6 +4,7 @@
     banSuggestions,
     championMatchup,
     closeCompact,
+    duoSynergy,
     errorText,
     getChampSelectState,
     importLoadout,
@@ -23,6 +24,7 @@
   import type {
     BanSuggestion,
     ChampSelectState,
+    DuoSynergy,
     Item,
     Lane,
     Recommendation,
@@ -31,7 +33,8 @@
     RunePage,
     Scored,
     Spell,
-    StaticPayload
+    StaticPayload,
+    Synergy
   } from '$lib/types';
   import { LANES, LANE_NAMES, VERDICT_NAMES, formatCount, formatPercent } from '$lib/util';
 
@@ -325,6 +328,71 @@
     }
   });
 
+  // --- LC-017: bot lane synergy (ADC ↔ support) ---
+  // Needs only the partner's champion (hovered or locked), not the opponent; the opponent only
+  // marks "+ counter". Before lock-in two tabs: Counter (the pool, good-synergy rows tagged) and
+  // Sinerji (best partners for anyone, not only the pool); after lock-in one short line.
+  type SynState =
+    | { kind: 'none' }
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ok'; data: DuoSynergy; key: string };
+  let synState = $state.raw<SynState>({ kind: 'none' });
+  let tab = $state<'counter' | 'synergy'>('counter');
+  const partner = $derived(lane === 'adc' || lane === 'support' ? (cs?.duoPartner ?? null) : null);
+  const synKey = $derived.by(() => {
+    if (!data || !active || !lane || !cs || partner === null) return null;
+    const skip = [...new Set([...cs.bans, ...cs.allies, ...cs.enemies])].sort((x, y) => x - y);
+    return `${lane}:${partner}:${opponent ?? ''}:${skip.join(',')}`;
+  });
+  let synSeq = 0;
+  $effect(() => {
+    const key = synKey;
+    void retries;
+    const my = ++synSeq;
+    if (!key) {
+      synState = { kind: 'none' };
+      return;
+    }
+    const [l, p, o, s] = key.split(':');
+    // same partner, only the opponent / bans / picks changed: keep the current list until the
+    // new one arrives (no flicker). A new partner (or lane): its numbers are someone else's, so
+    // nothing is shown under the new name until they arrive.
+    const prev = untrack(() => synState);
+    if (prev.kind !== 'ok' || !prev.key.startsWith(`${l}:${p}:`)) synState = { kind: 'loading' };
+    duoSynergy(l as Lane, Number(p), o ? Number(o) : null, s ? s.split(',').map(Number) : []).then(
+      (d) => {
+        if (my === synSeq) synState = { kind: 'ok', data: d, key };
+      },
+      (e) => {
+        if (my === synSeq) synState = { kind: 'error', message: errorText(e) };
+      }
+    );
+  });
+  // no partner (another lane, partner not hovering yet): back to the plain pool view
+  $effect(() => {
+    if (partner === null) tab = 'counter';
+  });
+  const synAll = $derived(synState.kind === 'ok' ? synState.data.all : []);
+  // the shown list is for an earlier opponent / ban list until the new one arrives: its
+  // "+ counter" marks may belong to the previous opponent, so they are hidden meanwhile
+  const synStale = $derived(synState.kind === 'ok' && synState.key !== synKey);
+  const synError = $derived(synState.kind === 'ok' ? synState.data.error : null);
+  const synOf = (k: number) => synAll.find((s) => s.champion === k);
+  const partnerName = $derived(partner !== null ? champName(partner) : '');
+  /** "+2,4" / "−1,0": percentage points, Turkish decimal comma. */
+  const signed = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1).replace('.', ',')}`;
+  const synTip = (s: Synergy) =>
+    `${partnerName} ile birlikte ${formatPercent(s.wins / s.matches)} kazanma · ${formatCount(s.matches)} maç · ` +
+    `iki şampiyonun tek başına oranlarından ${signed(s.synergy)} puan`;
+  /** Tablist keys: arrows switch between the two tabs (and move focus). */
+  function tabKey(e: KeyboardEvent) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    tab = tab === 'counter' ? 'synergy' : 'counter';
+    document.getElementById(`tab-${tab}`)?.focus();
+  }
+
   // A Recommendation carries `error`; a ban suggestion (plain Scored) has none.
   type Row = Scored & { error?: string | null };
   const failed = (r: Row) => r.error != null && r.matches === 0;
@@ -522,6 +590,10 @@
             {:else}
               Rakip bekleniyor…
             {/if}
+            {#if partner !== null && synOf(mine)}
+              {@const ms = synOf(mine)!}
+              <span class="duo" class:good={ms.good} use:tooltip={synTip(ms)}>· {partnerName} ile <i>{signed(ms.synergy)}</i></span>
+            {/if}
           </span>
         </div>
         {#if cs.myLane === null}{@render lanePicker()}{/if}
@@ -691,15 +763,105 @@
         </div>
       {/if}
     {:else}
+      {@const pc = partner !== null ? champByKey.get(partner) : undefined}
       <div class="title-row">
-        <h2 class="section-title">Havuzun</h2>
+        {#if partner !== null}
+          <div class="tabs" role="tablist" aria-label="Öneri türü">
+            <button
+              type="button"
+              id="tab-counter"
+              class="tab"
+              class:on={tab === 'counter'}
+              role="tab"
+              aria-selected={tab === 'counter'}
+              aria-controls="tab-panel"
+              tabindex={tab === 'counter' ? 0 : -1}
+              onclick={() => (tab = 'counter')}
+              onkeydown={tabKey}>Counter</button
+            >
+            <button
+              type="button"
+              id="tab-synergy"
+              class="tab"
+              class:on={tab === 'synergy'}
+              role="tab"
+              aria-selected={tab === 'synergy'}
+              aria-controls="tab-panel"
+              tabindex={tab === 'synergy' ? 0 : -1}
+              onclick={() => (tab = 'synergy')}
+              onkeydown={tabKey}>Sinerji</button
+            >
+          </div>
+        {:else}
+          <h2 class="section-title">Havuzun</h2>
+        {/if}
         {#if cs.myLane === null}{@render lanePicker()}{/if}
-        {#if opponent !== null}
+        {#if tab === 'synergy' && partner !== null}
+          {#if synError !== null}
+            <button
+              type="button"
+              class="rerr"
+              aria-label="Rakip verisi eksik, yeniden dene"
+              use:tooltip={`Rakibin eşleşme verisi alınamadı (${synError}); "+ counter" eksik olabilir · yeniden dene`}
+              onclick={() => retries++}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4.5V9h-4.5" /></svg>
+            </button>
+          {/if}
+          <span class="vs for">
+            {#if pc}<GameIcon src={pc.icon} name={pc.name} size={16} crop tip={false} />{/if}
+            <span><b>{partnerName}</b> ile{#if !cs.duoPartnerLocked}{' '}<span class="hover-note">(gösteriyor)</span>{/if}</span>
+          </span>
+        {:else if opponent !== null}
           <span class="vs">vs <b>{champName(opponent)}</b></span>
         {/if}
       </div>
 
-      {#if opponent === null}
+      <!-- WAI-ARIA tabs: the panel is a tab stop (its rows have nothing focusable) -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <div
+        class="panel"
+        id="tab-panel"
+        role={partner !== null ? 'tabpanel' : undefined}
+        aria-labelledby={partner !== null ? `tab-${tab}` : undefined}
+        tabindex={partner !== null ? 0 : undefined}
+      >
+      {#if tab === 'synergy' && partner !== null}
+        {#if synState.kind === 'error'}
+          <div class="inline-error" role="alert">
+            <span>Sinerji verisi alınamadı</span>
+            <button type="button" class="btn btn-sm" use:tooltip={synState.message} onclick={() => retries++}>
+              Tekrar dene
+            </button>
+          </div>
+        {:else if synState.kind !== 'ok'}
+          <ol class="rows" aria-busy="true" aria-label="Sinerji yükleniyor">
+            {#each [0, 1, 2, 3, 4] as i (i)}<li class="rec syn skeleton"><span class="sk-icon"></span><span class="sk-line"></span></li>{/each}
+          </ol>
+        {:else if synState.data.best.length === 0}
+          {@render message(`${partnerName} için yeterli ikili verisi yok`, null)}
+        {:else}
+          <ol class="rows" aria-label="{partnerName} ile iyi giden şampiyonlar" aria-busy={synStale}>
+            {#each synState.data.best as s (s.champion)}
+              {@const c = champByKey.get(s.champion)}
+              <li class="rec syn" class:intent={s.champion === intent}>
+                {#if c}<GameIcon src={c.icon} name={c.name} size={28} crop tip={false} />{/if}
+                <div class="who">
+                  <span class="cname">{champName(s.champion)}</span>
+                  <span class="sub">
+                    {#if s.counter && opponent !== null && !synStale}
+                      <span class="gtag" use:tooltip={`${champName(opponent)} karşısında da iyi eşleşme`}>+ counter</span>
+                    {/if}
+                    <span>{formatCount(s.matches)} maç</span>
+                    {#if s.champion === intent}<span class="tag">Seçimin</span>{/if}
+                  </span>
+                </div>
+                <span class="rate syn-val" class:good={s.good} use:tooltip={synTip(s)}>{signed(s.synergy)}</span>
+              </li>
+            {/each}
+          </ol>
+        {/if}
+      {:else if opponent === null}
         {@render message(
           'Rakibin belli olunca havuzun sıralanır',
           cs.enemies.length > 0 ? 'Rakibini yukarıdan seçebilirsin.' : null
@@ -721,13 +883,22 @@
           {#each result.recs.slice(0, 3) as r, i (r.champion)}
             {@const c = champByKey.get(r.champion)}
             {@const isIntent = r.champion === intent}
+            {@const rs = synOf(r.champion)}
             <li class="rec" class:best={i === 0} class:intent={isIntent}>
               {#if c}<GameIcon src={c.icon} name={c.name} size={32} crop tip={false} />{/if}
               <div class="who">
                 <span class="cname">{champName(r.champion)}</span>
                 <span class="sub">
                   {#if i === 0}<span class="star">★ En iyi</span>{:else}Tercih #{r.poolIndex + 1}{/if}
-                  {#if isIntent}<span class="tag">Seçimin</span>{/if}
+                  <!-- the partner's icon stands for "{partner} ile" (the row has ~145px for this line) -->
+                  {#if partner !== null && rs?.good}
+                    {@const pc = champByKey.get(partner)}
+                    <span class="gtag" aria-label="{partnerName} ile iyi sinerji" use:tooltip={`${partnerName} ile iyi sinerji · ${synTip(rs)}`}>
+                      {#if pc}<GameIcon src={pc.icon} name={pc.name} size={12} crop tip={false} focusable={false} />{/if}İyi sinerji
+                    </span>
+                  {/if}
+                  <!-- no room for both tags: the teal bar on the left still marks my pick -->
+                  {#if isIntent && !(partner !== null && rs?.good)}<span class="tag">Seçimin</span>{/if}
                 </span>
               </div>
               <span class="rate v-{vClass(r)}">{rate(r)}</span>
@@ -740,6 +911,7 @@
           {#each [0, 1, 2] as i (i)}<li class="rec skeleton"><span class="sk-icon"></span><span class="sk-line"></span></li>{/each}
         </ol>
       {/if}
+      </div>
     {/if}
   </main>
 </div>
@@ -748,6 +920,8 @@
   .compact {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
+    /* the column never grows past the window (a long tag is clipped, not widening the page) */
+    grid-template-columns: minmax(0, 1fr);
     height: 100vh;
     overflow: hidden;
     border-top: 1px solid rgba(200, 170, 110, 0.35);
@@ -1085,6 +1259,89 @@
     font-size: 10px;
     font-weight: 600;
     line-height: 14px;
+  }
+
+  /* LC-017: Counter / Sinerji tabs (bot lane, partner known) */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-left: -6px;
+  }
+  .tab {
+    height: 22px;
+    padding: 0 6px;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    transition:
+      color var(--t-fast) var(--ease),
+      border-color var(--t-fast) var(--ease);
+  }
+  .tab:hover {
+    color: var(--gold-light);
+  }
+  .tab.on {
+    border-bottom-color: var(--gold);
+    color: var(--gold);
+  }
+  .tab:focus-visible {
+    outline: 1px solid var(--teal);
+    outline-offset: -1px;
+  }
+  .hover-note {
+    color: var(--muted);
+  }
+  /* fills the body, so a centred message (.msg, .inline-error) stays centred inside it */
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+  }
+  .panel:focus-visible {
+    outline: 1px solid var(--teal);
+    outline-offset: 2px;
+  }
+  /* yellow "good synergy" / "+ counter" tag (same yellow as the rune badges) */
+  .gtag {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 6px;
+    border: 1px solid rgba(240, 192, 80, 0.6);
+    border-radius: 8px;
+    background: rgba(240, 192, 80, 0.14);
+    color: #f0c050;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+    cursor: default;
+  }
+  .rec.syn {
+    height: 38px;
+  }
+  .syn-val {
+    color: var(--muted);
+    cursor: default;
+  }
+  .syn-val.good {
+    color: #f0c050;
+  }
+  .duo {
+    cursor: default;
+  }
+  .duo i {
+    color: var(--text);
+    font-style: normal;
+    font-weight: 600;
+  }
+  .duo.good i {
+    color: #f0c050;
   }
 
   .rate {
@@ -1427,6 +1684,10 @@
   }
   .rec.skeleton {
     border-color: #161d26;
+  }
+  .rec.syn.skeleton .sk-icon {
+    width: 28px;
+    height: 28px;
   }
   .sk-icon {
     width: 32px;

@@ -1,7 +1,17 @@
 # CHANGELOG
 
+## LC-017 — Bot lane sinerjisi arayüzü: Counter / Sinerji sekmeleri
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-009, LC-016
+
+> ### 2026-11-24 · Claude — Küçük pencerede sinerji
+> - **Ne:** ADC ya da support'ken partnerin şampiyonu (gösterdiği ya da kilitlediği) belliyse kilitten önce iki sekme: **Counter** (havuz sıralaması aynı; partnerle iyi sinerjili satırda partnerin ikonuyla sarı "İyi sinerji" etiketi) ve **Sinerji** (havuzdan bağımsız en iyi 5 şampiyon, "+ counter" sarı etiketi, artı puan; başlıkta "{partner} ile", kilitlemediyse "(gösteriyor)"). Kilitten sonra rakip satırında "· {partner} ile +2,4". Sinerji isteği rakip beklemeden gider; hata: Tekrar dene, rakip verisi eksikse yeniden dene simgesi. Sahte veri: `mockLane`, `mockPartner`, `mockSynergyFail`, `mockSynergyPartial`. İnceleme sonrası: partner değişince eski partnerin sayıları yeni adın altında gösterilmez (yeni veri gelene kadar iskelet); rakip değişirken "+ counter" gizli; sekme paneli odak durağı; mesajlar panelde yine ortalı
+> - **Neden:** kullanıcı isteği: partnerle iyi giden şampiyonları görmek; havuzda yoksa da öneri
+> - **Etkilenen:** LC-009 (küçük pencere sütunu artık pencereden geniş olamaz: `grid-template-columns: minmax(0, 1fr)`)
+> - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/mock.ts, README.md, CLAUDE.md, TODO.md
+> - **Commit:** d267cdb
+
 ## LC-016 — Bot lane sinerjisi verisi
-Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-006, LC-008, LC-017
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (arayüzü LC-017 ile birlikte) · İlgili: LC-006, LC-008, LC-017
 
 > ### 2026-11-24 · Claude — u.gg `champion_duos`, partner ve sinerji puanı
 > - **Ne:** `ugg.rs` partnerin `champion_duos` dosyasını okur (`[birlikte oynayan, galibiyet, maç, …]`); lane verisi artık galibiyeti de saklar (`LaneStat`, tek başına oran için). `lcu.rs` `duoPartner` / `duoPartnerLocked`: ADC ↔ support partnerinin gösterdiği ya da kilitlediği şampiyon. `scoring::duo_synergies` (ikilinin düzeltilmiş oranı − iki tek başına oranın ortalaması, ≥200 maç, iyi ≥ +1,5) ve `best_synergies` (artı sinerjili en iyi 5, banlı / alınmış yok, counter'lar önce). Yeni komut `duo_synergy` (bellek → disk `duos_{partner}.json` → ağ; rakibin eşleşme verisi alınamazsa `error` ile döner, counter işaretleri eksik olabilir); `types.ts`, `api.ts`, sahte veri

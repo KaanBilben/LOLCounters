@@ -42,8 +42,15 @@ Yalnızca açık işler. Biten iş buradan silinir; ne yapıldığı
   Geçince: `src-tauri/tests/run_verisi.rs`, `run_import.rs` ve `run_kartlari.rs` silinir,
   CHANGELOG LC-013/014/015 durumu "canlı test edildi" yapılır.
 
-- [ ] **LC-016 Bot lane sinerjisi verisi** — gerçek istemcide denenmedi. Arayüzü LC-017;
-  canlı test onunla birlikte yapılır (adımlar LC-017 girince buraya eklenecek).
+- [ ] **LC-016/017 Bot lane sinerjisi** — gerçek istemcide denenmedi.
+  `npm run tauri dev` → Dereceli ya da Normal Seçim'de ADC ya da support al:
+  - partnerin şampiyon gösterince başlıkta "Counter | Sinerji" sekmeleri çıkıyor;
+    "Sinerji"de 5 şampiyon, başlıkta "{partner} ile (gösteriyor)", partner kilitleyince
+    "(gösteriyor)" gidiyor;
+  - "Counter"da havuzundaki iyi sinerjili şampiyonda partnerin ikonuyla sarı
+    "İyi sinerji" etiketi var; rakibe de iyi olanlarda "Sinerji"de "+ counter";
+  - kilitleyince rakip satırında "· {partner} ile +x,x" görünüyor;
+  - top / mid / jungle'da ve kör seçimde sekme yok (eski "Havuzun" görünümü).
 
-  Geçince: `src-tauri/tests/sinerji_verisi.rs` silinir, CHANGELOG LC-016 durumu
+  Geçince: `src-tauri/tests/sinerji_verisi.rs` silinir, CHANGELOG LC-016/017 durumu
   "canlı test edildi" yapılır.
