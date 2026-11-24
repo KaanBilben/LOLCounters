@@ -57,3 +57,24 @@ gösterilir (`pick_rune_options`, `RUNE_OPTIONS = 3`). Veri:
 - **Açılışta seçili kart:** eşleşme kartı, yoksa "Önerilen", yoksa ilk kart.
 - **Büyüler:** eşleşme kartı varsa eşleşmenin büyüleri, yoksa lane'in genel
   büyüleri.
+
+## Bot lane sinerjisi
+
+ADC ya da support oynarken, partnerimin (gösterdiği ya da kilitlediği)
+şampiyonuyla hangi şampiyonların iyi gittiği (`duo_synergies`,
+`best_synergies`). Veri:
+[data-sources.md](data-sources.md#bot-lane-ikilileri-lc-016).
+
+- **Sinerji** (yüzde puanı) = ikilinin düzeltilmiş oranı
+  `(galibiyet + 50) / (maç + 100)` − iki şampiyonun o lane'lerdeki tek başına
+  oranlarının ortalaması. Tek başına oranlar lane filtresinin verisinden.
+  İki güçlü şampiyon birlikte zaten çok kazanır; bu yüzden ham ikili oranı
+  değil, beklenenin üstündeki kısım ölçülür.
+- `DUO_MIN_GAMES = 200` maçtan az ikili hesaba katılmaz.
+- **İyi sinerji:** `GOOD_SYNERGY = 1,5` puan ve üstü.
+- **Sinerji listesi:** sinerjisi artı olan en iyi `SYNERGY_LIST = 5` şampiyon
+  (havuzla sınırlı değil). Banlanmış ve alınmış şampiyonlar, partner ve rakip
+  çıkarılır. Rakibime karşı da iyi eşleşenler ("+ counter": yukarıdaki
+  "İyi eşleşme" kuralı, rakibin eşleşme verisinden) başa geçer; iki grup kendi
+  içinde sinerji sırasını korur.
+- Kör seçimde ve başka lane'lerde sinerji yoktur.

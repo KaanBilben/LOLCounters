@@ -41,3 +41,9 @@ Yalnızca açık işler. Biten iş buradan silinir; ne yapıldığı
 
   Geçince: `src-tauri/tests/run_verisi.rs`, `run_import.rs` ve `run_kartlari.rs` silinir,
   CHANGELOG LC-013/014/015 durumu "canlı test edildi" yapılır.
+
+- [ ] **LC-016 Bot lane sinerjisi verisi** — gerçek istemcide denenmedi. Arayüzü LC-017;
+  canlı test onunla birlikte yapılır (adımlar LC-017 girince buraya eklenecek).
+
+  Geçince: `src-tauri/tests/sinerji_verisi.rs` silinir, CHANGELOG LC-016 durumu
+  "canlı test edildi" yapılır.

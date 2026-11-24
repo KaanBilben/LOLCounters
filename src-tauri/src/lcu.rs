@@ -168,6 +168,11 @@ pub struct ChampSelectState {
     pub bans: Vec<i64>,
     /// Takım arkadaşlarımın seçtiği ya da gösterdiği şampiyonlar (yalnızca şampiyon numarası).
     pub allies: Vec<i64>,
+    /// Bot lane partnerimin şampiyonu (ben ADC'ysem support'um, support'sam ADC'm); kilitlemediyse
+    /// gösterdiği şampiyon. Başka lane'lerde ve kör seçimde `None` (LC-016).
+    pub duo_partner: Option<i64>,
+    /// Partner şampiyonunu kilitledi.
+    pub duo_partner_locked: bool,
 }
 
 /// `null` gelirse varsayılan değer.
@@ -264,8 +269,23 @@ impl Session {
             .filter(|m| Some(m.cell_id) != cell)
             .filter_map(|m| nz(m.champion_id).or_else(|| nz(m.champion_pick_intent)))
             .collect();
+        let my_lane = me.and_then(|m| lane_from_position(&m.assigned_position));
+        let partner_lane = match my_lane {
+            Some(Lane::Adc) => Some(Lane::Support),
+            Some(Lane::Support) => Some(Lane::Adc),
+            _ => None,
+        };
+        let partner = partner_lane.and_then(|pl| {
+            self.my_team
+                .iter()
+                .find(|m| Some(m.cell_id) != cell && lane_from_position(&m.assigned_position) == Some(pl))
+        });
+        let duo_partner = partner.and_then(|m| nz(m.champion_id).or_else(|| nz(m.champion_pick_intent)));
+        let duo_partner_locked = partner.is_some_and(|m| {
+            actions().any(|a| a.actor_cell_id == m.cell_id && a.kind == "pick" && a.completed)
+        });
         ChampSelectState {
-            my_lane: me.and_then(|m| lane_from_position(&m.assigned_position)),
+            my_lane,
             my_champion,
             my_intent,
             locked,
@@ -273,6 +293,8 @@ impl Session {
             ban_phase,
             bans,
             allies,
+            duo_partner,
+            duo_partner_locked,
         }
     }
 }

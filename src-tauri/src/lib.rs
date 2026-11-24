@@ -298,6 +298,7 @@ fn forget_empty(app: &AppHandle) {
     let runes = app.state::<RunesState>();
     lock(&runes.options).retain(|_, d| !d.is_empty());
     lock(&runes.matchups).retain(|_, d| !d.is_empty());
+    lock(&runes.duos).retain(|_, d| !d.is_empty());
 }
 
 async fn current_patch(app: &AppHandle, state: &AppState) -> Result<UggPatch, String> {
@@ -505,7 +506,7 @@ async fn recommend(
 /// Süren bir lane verisi indirmesi; aynı yamayı isteyen herkes bunu bekler.
 type RolesFuture = Shared<BoxFuture<'static, Result<Arc<ugg::RoleGames>, String>>>;
 
-/// Lane verisi (diskte `ugg/{yama}/roles.json`, lane başına maç sayısı).
+/// Lane verisi (diskte `ugg/{yama}/roles.json`, lane başına galibiyet ve maç).
 #[derive(Default)]
 struct RolesState {
     /// yama → yüklenmiş veri
@@ -697,6 +698,8 @@ struct RunesState {
     options: LaneCache<ChampKey, Vec<ugg::RunePage>>,
     /// (yama, şampiyon, rakip) → lane → eşleşme sayfası
     matchups: LaneCache<(String, i64, i64), ugg::MatchupPage>,
+    /// (yama, partner) → partnerin lane'i → birlikte oynadığı şampiyonlar (LC-016)
+    duos: LaneCache<ChampKey, Vec<ugg::DuoRow>>,
     /// Dosya başına kapı: aynı dosyayı isteyen ikinci çağrı ilk indirmeyi bekler (iki kez indirilmez).
     gates: Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
 }
@@ -856,6 +859,124 @@ async fn import_loadout(
     lcu::import_loadout(&app, page.primary_tree, page.secondary_tree, perks, spells, confirm).await
 }
 
+// --- LC-016: bot lane sinerjisi ------------------------------------------------
+
+/// Küçük pencerenin sinerji verisi: partnerle bütün ikililer ve sinerji sekmesinin listesi.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuoSynergy {
+    /// `scoring::duo_synergies`: en az `DUO_MIN_GAMES` maçlı bütün ikililer, sinerji sırasıyla.
+    pub all: Vec<scoring::Synergy>,
+    /// `scoring::best_synergies`: sinerji sekmesinde gösterilenler.
+    pub best: Vec<scoring::Synergy>,
+    /// Rakibin eşleşme verisi alınamadı: "counter" işaretleri eksik olabilir; arayüz yeniden
+    /// denemeyi sunar (hata önbelleğe yazılmaz).
+    pub error: Option<String>,
+}
+
+/// Ben ADC'ysem partnerim support'tur, support'sam ADC; başka lane'de bot ikilisi yok.
+fn partner_lane(lane: Lane) -> Option<Lane> {
+    match lane {
+        Lane::Adc => Some(Lane::Support),
+        Lane::Support => Some(Lane::Adc),
+        _ => None,
+    }
+}
+
+/// Partnerimle (bot lane) hangi şampiyonların iyi gittiği. Sinerji = ikilinin düzeltilmiş oranı −
+/// iki şampiyonun bu lane'lerdeki tek başına oranlarının ortalaması (`scoring::duo_synergies`).
+/// Rakip biliniyorsa rakibe karşı iyi eşleşenler "counter" sayılır (rakibin eşleşme verisinden).
+/// `exclude`: banlanmış ve alınmış şampiyonlar (yalnızca `best` listesinden atılır).
+#[tauri::command]
+async fn duo_synergy(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane: Lane,
+    partner: i64,
+    opponent: Option<i64>,
+    exclude: Vec<i64>,
+) -> Result<DuoSynergy, String> {
+    let Some(p_lane) = partner_lane(lane) else {
+        return Ok(DuoSynergy { all: Vec::new(), best: Vec::new(), error: None });
+    };
+    let patch = current_patch(&app, &state).await?;
+    let dir = cache_dir(&app)?;
+    let runes = app.state::<RunesState>();
+    let client = &state.client;
+    let (duos, roles, opp) = futures::join!(
+        lane_data(
+            &runes.duos,
+            &runes.gates,
+            (patch.patch.clone(), partner),
+            dir.join("ugg").join(&patch.patch).join(format!("duos_{partner}.json")),
+            || ugg::fetch_champion_duos(client, &patch, partner),
+        ),
+        role_games(&app),
+        async {
+            match opponent {
+                Some(o) => Some(champion_data(&app, &dir, &patch, o).await),
+                None => None,
+            }
+        },
+    );
+    let (duos, roles) = (duos?, roles?);
+    let Some(rows) = duos.get(&p_lane) else {
+        return Ok(DuoSynergy { all: Vec::new(), best: Vec::new(), error: None });
+    };
+    let solo = |champ: i64, l: Lane| {
+        roles
+            .get(&champ)
+            .and_then(|m| m.get(&l))
+            .filter(|s| s.matches > 0)
+            .map(|s| f64::from(s.wins) / f64::from(s.matches))
+    };
+    // Lane oranı yoksa sinerji hesaplanamaz (yanlış artı göstermemek için boş döner).
+    let Some(partner_wr) = solo(partner, p_lane) else {
+        return Ok(DuoSynergy { all: Vec::new(), best: Vec::new(), error: None });
+    };
+    // Rakibin satırı rakibin sonucudur; adayın sonucu = maç − rakibin galibiyeti.
+    let (opp_rows, error) = match &opp {
+        None => (None, None),
+        Some(Err(e)) => (None, Some(e.clone())),
+        Some(Ok(c)) => match c.data.matchups.get(&lane) {
+            Some(rows) => (Some(rows), None),
+            // eşleşme yarısı alınamadıysa hata; u.gg'de veri yoksa yalnızca counter yok
+            None => (None, c.error.clone().filter(|_| c.data.matchups.is_empty())),
+        },
+    };
+    let counters = |champ: i64| {
+        opp_rows
+            .and_then(|rows| rows.iter().find(|r| r.opponent == champ))
+            .is_some_and(|r| {
+                let cand = Candidate {
+                    champion: champ,
+                    pool_index: 0,
+                    wins: r.matches.saturating_sub(r.wins),
+                    matches: r.matches,
+                };
+                scoring::rank(&[cand])[0].verdict == scoring::Verdict::Good
+            })
+    };
+    let cands: Vec<scoring::DuoCandidate> = rows
+        .iter()
+        .filter_map(|r| {
+            Some(scoring::DuoCandidate {
+                champion: r.partner,
+                wins: r.wins,
+                matches: r.matches,
+                own_winrate: solo(r.partner, lane)?,
+                counter: counters(r.partner),
+            })
+        })
+        .collect();
+    let all = scoring::duo_synergies(&cands, partner_wr);
+    let mut exclude = exclude;
+    exclude.push(partner);
+    exclude.extend(opponent);
+    let best = scoring::best_synergies(&all, &exclude);
+    Ok(DuoSynergy { all, best, error })
+}
+
 /// Ana pencereyi öne getirir (küçük penceredeki düğme).
 #[tauri::command]
 fn open_main_window(app: AppHandle) {
@@ -912,6 +1033,7 @@ pub fn run() {
             ban_suggestions,
             rune_options,
             import_loadout,
+            duo_synergy,
             open_main_window,
             close_compact,
             open_compact_preview

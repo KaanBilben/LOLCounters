@@ -21,6 +21,12 @@ pub const RUNE_OPTIONS: usize = 3;
 pub const MATCHUP_PAGE_MIN_GAMES: u32 = 100;
 /// "Önerilen" rün kartı için gereken en az maç (LC-014).
 pub const RECOMMENDED_PAGE_MIN_GAMES: u32 = 100;
+/// Bot lane ikilisi bundan az maçlıysa sinerjisi hesaplanmaz (LC-016).
+pub const DUO_MIN_GAMES: u32 = 200;
+/// Bu sinerji (yüzde puanı) ve üstü "iyi sinerji" (LC-016).
+pub const GOOD_SYNERGY: f64 = 1.5;
+/// Sinerji sekmesinde gösterilen şampiyon sayısı (LC-016).
+pub const SYNERGY_LIST: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct Candidate {
@@ -142,4 +148,70 @@ pub fn best_rune_option(opts: &[RunePage], gold: Option<usize>) -> Option<usize>
             ra.cmp(&rb).then(a.matches.cmp(&b.matches))
         })
         .map(|(i, _)| i)
+}
+
+// --- LC-016: bot lane sinerjisi --------------------------------------------------
+
+/// Partnerimle birlikte oynayabilecek bir şampiyon (benim lane'imde).
+#[derive(Debug, Clone)]
+pub struct DuoCandidate {
+    pub champion: i64,
+    /// Partnerle birlikte galibiyet ve maç.
+    pub wins: u32,
+    pub matches: u32,
+    /// Şampiyonun bu lane'deki tek başına oranı, 0..1.
+    pub own_winrate: f64,
+    /// Rakibime karşı iyi eşleşme (`GOOD` ve en az `LOW_DATA_MATCHES` maç).
+    pub counter: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Synergy {
+    pub champion: i64,
+    pub wins: u32,
+    pub matches: u32,
+    /// Yüzde puanı: ikilinin düzeltilmiş oranı − iki şampiyonun tek başına oranlarının ortalaması.
+    pub synergy: f64,
+    /// `synergy >= GOOD_SYNERGY`.
+    pub good: bool,
+    pub counter: bool,
+}
+
+/// Bütün adayların sinerjisi; `DUO_MIN_GAMES`'ten az maçlı ikililer atılır. Sinerjiye göre büyükten
+/// küçüğe (eşitlikte çok maçlı önce). `partner_winrate`: partnerin tek başına oranı, 0..1.
+pub fn duo_synergies(cands: &[DuoCandidate], partner_winrate: f64) -> Vec<Synergy> {
+    let mut out: Vec<Synergy> = cands
+        .iter()
+        .filter(|c| c.matches >= DUO_MIN_GAMES)
+        .map(|c| {
+            let adjusted = (f64::from(c.wins) + PRIOR_GAMES / 2.0) / (f64::from(c.matches) + PRIOR_GAMES);
+            let synergy = (adjusted - (c.own_winrate + partner_winrate) / 2.0) * 100.0;
+            Synergy {
+                champion: c.champion,
+                wins: c.wins,
+                matches: c.matches,
+                synergy,
+                good: synergy >= GOOD_SYNERGY,
+                counter: c.counter,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| b.synergy.total_cmp(&a.synergy).then(b.matches.cmp(&a.matches)));
+    out
+}
+
+/// Sinerji sekmesi: `exclude` (banlanmış, alınmış) dışında, sinerjisi artı olan en iyi
+/// `SYNERGY_LIST` şampiyon; rakibe de iyi olanlar ("+ counter") başa geçer. `all`
+/// `duo_synergies` sırasında gelir.
+pub fn best_synergies(all: &[Synergy], exclude: &[i64]) -> Vec<Synergy> {
+    let mut out: Vec<Synergy> = all
+        .iter()
+        .filter(|s| s.synergy > 0.0 && !exclude.contains(&s.champion))
+        .take(SYNERGY_LIST)
+        .cloned()
+        .collect();
+    // kararlı sıralama: counter'lar ve diğerleri kendi içinde sinerji sırasını korur
+    out.sort_by_key(|s| !s.counter);
+    out
 }
