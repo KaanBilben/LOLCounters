@@ -3,6 +3,7 @@ name = "lolcounters"
 version = "0.1.0"
 description = "LoL counter öneri uygulaması"
 authors = ["KaanBilben"]
+license = "MIT"
 edition = "2024"
 
 [lib]

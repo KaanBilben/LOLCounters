@@ -106,12 +106,16 @@ pub struct AppState {
     rechecking: AtomicBool,
 }
 
+/// Dış isteklerin (Data Dragon, u.gg) kimliği. Bir sorun olursa u.gg bizi
+/// engellemek yerine repo adresinden ulaşabilsin diye adres de yazılır.
+pub const USER_AGENT: &str = "LOLCounters/0.1 (+https://github.com/KaanBilben/LOLCounters)";
+
 impl AppState {
     fn new() -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
             .gzip(true)
-            .user_agent("LOLCounters/0.1")
+            .user_agent(USER_AGENT)
             .build()
             .expect("HTTP istemcisi kurulamadı");
         Self {

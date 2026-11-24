@@ -2,6 +2,7 @@
   import { errorText, getAutostart, setAutostart } from './api';
   import { tooltip } from './tooltip';
   import type { AutostartState } from './types';
+  import { version } from '../../package.json';
 
   // Header gear button + small "Ayarlar" panel. Autostart state is read from Rust
   // each time the panel opens (the user can also change it in Task Manager).
@@ -127,6 +128,18 @@
       {#if error}
         <p class="err" role="alert">{error}</p>
       {/if}
+
+      <section class="about" aria-labelledby="about-title">
+        <h3 class="about-title" id="about-title">
+          Hakkında <span class="ver">LOLCounters {version} · MIT lisansı</span>
+        </h3>
+        <p class="legal">
+          LOLCounters, Riot Games tarafından onaylanmamıştır ve Riot Games'in ya da Riot Games
+          varlıklarını üreten veya yöneten kimsenin görüşlerini yansıtmaz. Riot Games ve ilgili
+          tüm varlıklar Riot Games, Inc.'in ticari markalarıdır. İstatistikler u.gg'den gelir;
+          u.gg ile bir bağı yoktur.
+        </p>
+      </section>
     </div>
   {/if}
 </div>
@@ -297,6 +310,37 @@
   }
   .switch:disabled .knob {
     background: var(--faint);
+  }
+
+  .about {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .about-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .ver {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--muted);
+  }
+  .legal {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--faint);
   }
 
   .err {
