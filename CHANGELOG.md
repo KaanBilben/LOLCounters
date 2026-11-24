@@ -33,7 +33,7 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** kullanıcı isteği: 3 seçeneği aynı anda görmek, LoL istemcisine benzer görünüm
 > - **Etkilenen:** LC-013 (`RuneOptions.best`, `scoring::best_rune_option`), LC-009 (küçük pencere boyu)
 > - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/GameIcon.svelte, src-tauri/src/compact.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, docs/scoring.md, README.md, TODO.md
-> - **Commit:** —
+> - **Commit:** 7c2418e
 
 ## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
