@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
+Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
+
+> ### 2026-11-24 · Claude — Ban aşamasında en kötü 3 eşleşme
+> - **Ne:** `lcu.rs` oturumdan ban aşamasını (benim tamamlanmamış `ban` eylemim, kilit yok), tamamlanmış banları ve takım arkadaşlarının şampiyonlarını okur; `scoring::worst_matchups` (30+ maç, düzeltilmiş orana göre en kötü 3); yeni komut `ban_suggestions`. Küçük pencere ban aşamasında "Ban önerisi · X için" başlığıyla 3 satır gösterir (ilk satır "En tehlikeli"); şampiyon gösterilmediyse yönlendirme mesajı, hata durumunda "Tekrar dene". Sahte veri: `banning`, `banningNoIntent`
+> - **Neden:** ban ekranında oynayacağın şampiyonun counter'larını banlayabilmek
+> - **Etkilenen:** LC-008 (`ChampSelectState`'e `banPhase`, `bans`, `allies`), LC-009 (küçük pencerenin ban görünümü)
+> - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/scoring.md, docs/data-sources.md, README.md
+> - **Commit:** —
+
 ## LC-010 — Yayın hazırlığı: lisans, Riot uyarısı, kullanıcı belgesi
 Başlangıç 2026-11-23 · Durum: canlı test edildi · İlgili: LC-007
 
@@ -31,6 +41,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
 > - **Etkilenen:** LC-003 (`save_settings` olay gönderiyor), LC-007, LC-008
 > - **Dosyalar:** src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/api.ts, src/lib/mock.ts
 > - **Commit:** 0a79e9e
+>
+> ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
 
 ## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
@@ -54,6 +66,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
 > - **Etkilenen:** LC-007 (`recheck_static` artık seçim başlangıcında da çalışır), LC-009 (küçük penceredeki lane seçici `set_my_lane`'i çağıracak)
 > - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/lib.rs, src-tauri/tests/lc008.rs, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md
 > - **Commit:** 64ed8ba
+>
+> ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
 
 ## LC-007 — Kolay açılış: simge, kurulum, tepsi, tek kopya, autostart
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003, LC-004

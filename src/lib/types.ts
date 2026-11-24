@@ -70,7 +70,8 @@ export interface Build {
 
 export type Verdict = 'good' | 'even' | 'hard' | 'lowData';
 
-export interface Recommendation {
+/** src-tauri/src/scoring.rs `Scored`. */
+export interface Scored {
   champion: number;
   poolIndex: number;
   wins: number;
@@ -79,6 +80,15 @@ export interface Recommendation {
   adjusted: number;
   score: number;
   verdict: Verdict;
+}
+
+/**
+ * LC-011 ban_suggestions: `champion` is the counter (the enemy), the numbers are my
+ * champion's result against it; worst first.
+ */
+export type BanSuggestion = Scored;
+
+export interface Recommendation extends Scored {
   build: Build | null;
   /** Set when this champion's data could not be fetched (network error), so 0/0 is not real "low data". */
   error: string | null;
@@ -112,6 +122,12 @@ export interface ChampSelectState {
   locked: boolean;
   /** Revealed enemy champions, in order. */
   enemies: number[];
+  /** LC-011: my ban action exists and is not done (planning / ban phase), not locked. */
+  banPhase: boolean;
+  /** Champions in completed bans (both teams). */
+  bans: number[];
+  /** Champions my teammates picked or hovered. */
+  allies: number[];
   /** My lane opponent: the user's choice, else the guess; null if unknown. */
   opponent: number | null;
   /** True when `opponent` was chosen by the user (not guessed). */

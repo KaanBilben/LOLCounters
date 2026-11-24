@@ -12,6 +12,8 @@ pub const LOW_DATA_MATCHES: u32 = 30;
 pub const GOOD: f64 = 0.52;
 /// Bu düzeltilmiş oran ve altı "Zor eşleşme".
 pub const HARD: f64 = 0.48;
+/// Ban önerisinde gösterilen en kötü eşleşme sayısı.
+pub const BAN_SUGGESTIONS: usize = 3;
 
 #[derive(Debug, Clone)]
 pub struct Candidate {
@@ -81,5 +83,21 @@ pub fn rank(c: &[Candidate]) -> Vec<Scored> {
             .total_cmp(&a.score)
             .then(a.pool_index.cmp(&b.pool_index))
     });
+    out
+}
+
+/// Ban önerisi: benim şampiyonumun en kötü eşleşmeleri. `cands` satırlarında `champion` rakiptir,
+/// oranlar benim şampiyonumun o rakibe karşı sonucudur. `exclude` (banlanmış, takımın şampiyonu)
+/// ve `LOW_DATA_MATCHES`'tan az maçlı rakipler atılır; düzeltilmiş orana göre küçükten büyüğe
+/// (eşitlikte çok maçlı önce) ilk `BAN_SUGGESTIONS` tanesi döner.
+pub fn worst_matchups(cands: &[Candidate], exclude: &[i64]) -> Vec<Scored> {
+    let kept: Vec<Candidate> = cands
+        .iter()
+        .filter(|c| c.matches >= LOW_DATA_MATCHES && !exclude.contains(&c.champion))
+        .cloned()
+        .collect();
+    let mut out = rank(&kept);
+    out.sort_by(|a, b| a.adjusted.total_cmp(&b.adjusted).then(b.matches.cmp(&a.matches)));
+    out.truncate(BAN_SUGGESTIONS);
     out
 }

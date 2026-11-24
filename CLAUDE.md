@@ -44,8 +44,8 @@ projeye özel kurallar var.
   `lolcounters.mockOffline = '1'` ya da `lolcounters.mockPartial = '1'` yaz
   (otomatik kayıt hatası için `lolcounters.mockSaveFail = '1'`).
   Küçük pencere: `http://localhost:1420/compact`; durumu
-  `lolcounters.mockChampSelect` seçer (`none`, `waiting`, `picking`, `locked`,
-  `blind`; ayrıntı `src/lib/mock.ts` başında).
+  `lolcounters.mockChampSelect` seçer (`none`, `waiting`, `banning`,
+  `banningNoIntent`, `picking`, `locked`, `blind`; ayrıntı `src/lib/mock.ts` başında).
 - **Canlı test (kullanıcı):** `npm run tauri dev`; dağıtım için
   `npm run tauri build`.
 

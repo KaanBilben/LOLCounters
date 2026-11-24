@@ -23,3 +23,17 @@ Etiketler (düzeltilmiş orana göre):
 Örnek: ilk tercihin %45, ikinci tercihin %53 ise (2 şampiyonluk havuz):
 45 + 3 = 48 < 53 + 1,5 = 54,5 → ikinci tercih önerilir. Oranlar yakınsa
 tercih sırası kazanır.
+
+## Ban önerisi
+
+Ban aşamasında, gösterdiğin şampiyonun atanmış lane'indeki u.gg eşleşme
+verisinden en kötü 3 eşleşme gösterilir (`worst_matchups`,
+`BAN_SUGGESTIONS = 3`).
+
+- Oran, senin şampiyonunun o rakibe karşı sonucudur; etiketler yukarıdaki
+  tabloyla aynıdır ("Zor eşleşme" = iyi bir ban adayı).
+- 30 maçtan az olan rakipler alınmaz. Banlanmış şampiyonlar, takım
+  arkadaşlarının seçtiği ya da gösterdiği şampiyonlar ve şampiyonun kendisi
+  de listeye girmez.
+- Düzeltilmiş orana göre küçükten büyüğe sıralanır (eşitlikte çok maçlı önce).
+  Tercih bonusu burada kullanılmaz.

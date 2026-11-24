@@ -145,9 +145,9 @@ yoklama yoktur. Lockfile görününce bağlantı en çok 4 kez denenir (0/1/2/4 
 | Alan | Kullanım |
 |---|---|
 | `localPlayerCellId` | Benim hücrem |
-| `myTeam[].cellId`, `championId`, `championPickIntent`, `assignedPosition` | Benim rolüm (`top/jungle/middle/bottom/utility`) ve niyetim |
+| `myTeam[].cellId`, `championId`, `championPickIntent`, `assignedPosition` | Benim rolüm (`top/jungle/middle/bottom/utility`) ve niyetim; takım arkadaşlarının seçtiği ya da gösterdiği şampiyon (ban önerisinden çıkarılır) |
 | `theirTeam[].championId` | Görünen rakipler (0 olmayanlar) |
-| `actions[][].actorCellId`, `championId`, `completed`, `type` | Kilit: benim tamamlanmış `pick` eylemim |
+| `actions[][].actorCellId`, `championId`, `completed`, `type` | Kilit: benim tamamlanmış `pick` eylemim. Ban aşaması: benim tamamlanmamış `ban` eylemim varsa (kilit yokken) ban önerisi gösterilir; tamamlanmış `ban` eylemlerindeki şampiyonlar öneriden çıkarılır |
 | aşama (`gameflow-phase`) | `ChampSelect` başlangıç; başka her aşama ya da oturum `Delete` bitiş |
 
 Rakibimin hangi lane'de olduğu istemcide yok; şampiyonların rol paylarıyla

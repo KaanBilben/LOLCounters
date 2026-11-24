@@ -6,11 +6,15 @@
 // Preview the error state with: localStorage.setItem('lolcounters.mockOffline', '1')
 //
 // Champion select (compact window, http://localhost:1420/compact): pick the state with
-//   localStorage.setItem('lolcounters.mockChampSelect', 'none' | 'waiting' | 'picking' | 'locked' | 'blind')
+//   localStorage.setItem('lolcounters.mockChampSelect',
+//     'none' | 'waiting' | 'banning' | 'banningNoIntent' | 'picking' | 'locked' | 'blind')
 // and reload (default 'picking'). The pre-lock list ranks your Havuzum top-lane pool.
+// 'banning' (LC-011) shows the ban suggestions for the hovered champion (first top-lane pool
+// champion); 'banningNoIntent' is the same phase before a champion is hovered.
 
 import type {
   AutostartState,
+  BanSuggestion,
   Build,
   Champion,
   Item,
@@ -334,8 +338,12 @@ export async function setAutostart(enabled: boolean): Promise<AutostartState> {
 
 import type { ChampSelectState } from './types';
 
-type MockChampSelect = 'none' | 'waiting' | 'picking' | 'locked' | 'blind';
+const MOCK_MODES = ['none', 'waiting', 'banning', 'banningNoIntent', 'picking', 'locked', 'blind'] as const;
+type MockChampSelect = (typeof MOCK_MODES)[number];
 const CHAMP_SELECT_KEY = 'lolcounters.mockChampSelect';
+// Zed and Jax banned; a teammate hovers Yasuo
+const MOCK_BANS = [238, 24];
+const MOCK_ALLIES = [157];
 // Riven, Lee Sin, Ahri, Jinx, Thresh
 const MOCK_ENEMIES = [92, 64, 103, 222, 412];
 
@@ -350,7 +358,8 @@ const champSelectListeners = new Set<(s: ChampSelectState) => void>();
 function mockChampSelectMode(): MockChampSelect {
   try {
     const v = localStorage.getItem(CHAMP_SELECT_KEY);
-    if (v === 'none' || v === 'waiting' || v === 'picking' || v === 'locked' || v === 'blind') return v;
+    const mode = MOCK_MODES.find((m) => m === v);
+    if (mode) return mode;
   } catch {
     /* storage blocked */
   }
@@ -367,11 +376,23 @@ async function mockChampSelectState(): Promise<ChampSelectState> {
     myIntent: null,
     locked: false,
     enemies: [],
+    banPhase: false,
+    bans: [],
+    allies: [],
     opponent: null,
     opponentChosen: false
   };
   if (mode === 'none' || mode === 'waiting') return base;
   const pool = (await getSettings()).pools.top ?? [];
+  if (mode === 'banning' || mode === 'banningNoIntent') {
+    return {
+      ...base,
+      myIntent: mode === 'banning' ? (pool[0] ?? 86) : null,
+      banPhase: true,
+      bans: MOCK_BANS,
+      allies: MOCK_ALLIES
+    };
+  }
   const locked = mode === 'locked';
   const enemies = locked ? MOCK_ENEMIES : MOCK_ENEMIES.slice(0, 3);
   // the guess needs my lane; in blind pick only the hand-picked one (setMyLane)
@@ -385,6 +406,8 @@ async function mockChampSelectState(): Promise<ChampSelectState> {
     myIntent: locked ? null : (pool[1] ?? pool[0] ?? 86),
     locked,
     enemies,
+    bans: MOCK_BANS,
+    allies: MOCK_ALLIES,
     opponent,
     opponentChosen: opponent !== null && opponent === mockOpponent
   };
@@ -451,6 +474,45 @@ export async function championMatchup(
     build: MOCK_BUILD,
     error: null
   };
+}
+
+// --- LC-011: ban suggestions (mirrors scoring::worst_matchups) ---------------
+
+/** Synthetic matchups of `champion` against fighters/tanks; the worst 3 with 30+ games. */
+export async function banSuggestions(
+  lane: Lane,
+  champion: number,
+  exclude: number[]
+): Promise<BanSuggestion[]> {
+  await delay(400);
+  if (mockFlag(OFFLINE_KEY)) throw 'mock: network unreachable';
+  const { champions } = await loadStatic();
+  const skip = new Set([...exclude, champion]);
+  return champions
+    .filter((c) => ['Fighter', 'Tank'].includes(c.tags[0]) && !skip.has(c.key))
+    .map((c): BanSuggestion => {
+      const h = hash(champion * 7919 + c.key * 31 + lane.length);
+      const matches = 20 + (h % 2400);
+      const wins = Math.round(matches * (0.42 + ((h >>> 8) % 1600) / 10000)); // 42% .. 58%
+      const adjusted = (wins + PRIOR_GAMES / 2) / (matches + PRIOR_GAMES);
+      let verdict: Verdict;
+      if (adjusted >= GOOD) verdict = 'good';
+      else if (adjusted <= HARD) verdict = 'hard';
+      else verdict = 'even';
+      return {
+        champion: c.key,
+        poolIndex: 0,
+        wins,
+        matches,
+        winrate: wins / matches,
+        adjusted,
+        score: adjusted * 100 + PREF_MAX_BONUS,
+        verdict
+      };
+    })
+    .filter((s) => s.matches >= LOW_DATA_MATCHES)
+    .sort((a, b) => a.adjusted - b.adjusted || b.matches - a.matches)
+    .slice(0, 3);
 }
 
 /** The preview windows share localStorage: a save in another window fires `storage` here. */
