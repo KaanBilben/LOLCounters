@@ -143,6 +143,8 @@ export interface RuneOptions {
   gold: number | null;
   /** The matchup's spells when `gold` is set, else the lane's general spells. */
   spells: number[];
+  /** A source failed and the list may be incomplete (one page, no shards): offer a retry. */
+  error: string | null;
 }
 
 /**

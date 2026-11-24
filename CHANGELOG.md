@@ -8,6 +8,12 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (uç noktalar
 > - **Neden:** önerilen rünleri ve büyüleri elle kurmadan kullanmak
 > - **Etkilenen:** LC-008 (`lcu.rs` artık istek üzerine istemciye yazıyor; REST istemcisi bağlantıda bir kez kuruluyor)
 > - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/ddragon.rs, src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, README.md, CLAUDE.md
+> - **Commit:** 9322a9b
+>
+> ### 2026-11-24 · Claude — Fix: inceleme bulguları (kullanıcı sayfası silinmez, tek içe aktarma)
+> - **Ne:** onaylanan kullanıcı sayfasında PUT reddedilirse artık `DELETE` + `POST` yapılmaz, hata gösterilir (yedek yol yalnızca uygulamanın "LOLCounters" sayfası için); `import_loadout` tek seferde bir tane çalışır (üst üste tıklama ikinci sayfa açmaz). Arayüz: rakip ya da lane değişince yeni rünler gelene kadar eski sayfa soluk, altın etiket gizli ve içe aktarma kapalı (eski rakibin sayfası yeni rakibe "önerilen" diye yazılmaz); parçası olmayan sayfada düğme kapalı, nedeni ipucunda. Belge: takımın büyüleri yalnızca içe aktarmada çözümleniyor (yalnızca benimki kullanılıyor); TODO.md'ye canlı test adımları
+> - **Neden:** 4 yönlü inceleme + şüpheci doğrulama; en ciddisi, geçersiz bir sayfada kullanıcının onayladığı sayfanın kalıcı silinebilmesiydi
+> - **Dosyalar:** src-tauri/src/lcu.rs, src/routes/compact/+page.svelte, docs/data-sources.md, TODO.md
 > - **Commit:** —
 
 ## LC-014 — Rün seçenekleri arayüzü: 3 sayfa, geçiş ve altın vurgu
@@ -19,6 +25,8 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Etkilenen:** LC-009 (kilit sonrası görünüm değişti)
 > - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/mock.ts, README.md, CLAUDE.md
 > - **Commit:** 51ac2a9
+>
+> ### 2026-11-24 · Claude — → LC-013 ve LC-015 düzeltmeleriyle değiştirildi
 
 ## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
@@ -28,6 +36,13 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** küçük pencerede 3 rün seçeneği ve eşleşmeye göre en iyisinin vurgusu; u.gg overview yalnızca tek sayfa veriyor
 > - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, docs/scoring.md
 > - **Commit:** a4610f6
+>
+> ### 2026-11-24 · Claude — Fix: inceleme bulguları (tek indirme, eksik veride yeniden deneme)
+> - **Ne:** `lane_data` dosya başına kapıyla aynı dosyayı bir kez indirir (rakip değişince ~3 MB `builds` ikinci kez inmez); `RuneOptions.error`: `builds` ya da overview alınamadıysa eldeki seçenekler hatayla döner ve pencerede "yeniden dene" simgesi çıkar (önceden tek sayfaya sessizce düşüyordu); overview yoksa parçalar eşleşme sayfasından. Sahte veri: `mockRunesPartial` (branch: `feature/run-import`, LC-015 düzeltmesiyle aynı commit)
+> - **Neden:** inceleme: geçici bir hata seçim boyunca tek sayfa / parçasız sayfa bırakıyordu
+> - **Etkilenen:** LC-014 (rün başlığında yeniden dene simgesi)
+> - **Dosyalar:** src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, src/routes/compact/+page.svelte, docs/data-sources.md, CLAUDE.md
+> - **Commit:** —
 
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
 Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009

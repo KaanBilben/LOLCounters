@@ -13,7 +13,8 @@
 // champion); 'banningNoIntent' is the same phase before a champion is hovered.
 // 'locked' (LC-014) shows the rune options: the matchup (gold) option is the 2nd one, except
 // against Ahri (103), who has none. Only the runes fail with 'lolcounters.mockRunesFail' = '1';
-// 'lolcounters.mockRunesEmpty' = '1' returns no options.
+// 'lolcounters.mockRunesEmpty' = '1' returns no options; 'lolcounters.mockRunesPartial' = '1' one page
+// without shards and an error (a source failed).
 
 import type {
   AutostartState,
@@ -555,9 +556,11 @@ const MOCK_RUNE_OPTIONS: RunePage[] = [
 export async function runeOptions(_lane: Lane, _champion: number, enemy: number | null): Promise<RuneOptions> {
   await delay(400);
   if (mockFlag(OFFLINE_KEY) || mockFlag('lolcounters.mockRunesFail')) throw 'mock: network unreachable';
-  if (mockFlag('lolcounters.mockRunesEmpty')) return { options: [], gold: null, spells: [] };
+  if (mockFlag('lolcounters.mockRunesEmpty')) return { options: [], gold: null, spells: [], error: null };
+  if (mockFlag('lolcounters.mockRunesPartial'))
+    return { options: [{ ...MOCK_RUNE_OPTIONS[0], shards: [] }], gold: null, spells: [4, 14], error: 'mock: builds timed out' };
   const gold = enemy !== null && enemy !== 103 ? 1 : null;
-  return { options: MOCK_RUNE_OPTIONS, gold, spells: gold === null ? [4, 14] : [4, 12] };
+  return { options: MOCK_RUNE_OPTIONS, gold, spells: gold === null ? [4, 14] : [4, 12], error: null };
 }
 
 // LC-015: 'lolcounters.mockImport' = 'full' (no free page: asks first) | 'fail' | 'noSpells'.

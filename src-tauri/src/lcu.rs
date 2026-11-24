@@ -670,6 +670,9 @@ pub async fn import_loadout(
     confirmed: Option<i64>,
 ) -> Result<ImportOutcome, String> {
     use reqwest::Method;
+    // Aynı anda tek içe aktarma: üst üste tıklamalar iki "LOLCounters" sayfası açmasın.
+    static IMPORTING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _one = IMPORTING.lock().await;
     let st = app.state::<LcuState>();
     let (conn, active) = {
         let g = crate::lock(&st.0);
@@ -705,11 +708,16 @@ pub async fn import_loadout(
         ImportTarget::NoPage => return Err("Düzenlenebilir rün sayfası yok".into()),
         ImportTarget::Ask(id, page) => return Ok(ImportOutcome::NeedsConfirm { id, page }),
         ImportTarget::Create => create_page(&conn, &body(None)).await?,
-        ImportTarget::Update(id) | ImportTarget::Overwrite(id) => {
+        // kullanıcının kendi sayfası: yalnızca düzenlenir, hiçbir durumda silinmez
+        ImportTarget::Overwrite(id) => {
+            lcu_res(conn.req(Method::PUT, &format!("{PAGES_URI}/{id}")).json(&body(Some(id)))).await?;
+            id
+        }
+        ImportTarget::Update(id) => {
             let uri = format!("{PAGES_URI}/{id}");
             match lcu_res(conn.req(Method::PUT, &uri).json(&body(Some(id)))).await {
                 Ok(_) => id,
-                // düzenleme kabul edilmezse: silip aynı yere yenisini oluştur
+                // uygulamanın kendi sayfası düzenlemeyi kabul etmezse: silip yenisini oluştur
                 Err(_) => {
                     lcu_res(conn.req(Method::DELETE, &uri)).await?;
                     create_page(&conn, &body(None)).await?

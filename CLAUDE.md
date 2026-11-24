@@ -43,7 +43,7 @@ projeye özel kurallar var.
   `src/lib/mock.ts` sahte veriyi kullanır; hata durumları için localStorage'a
   `lolcounters.mockOffline = '1'` ya da `lolcounters.mockPartial = '1'` yaz
   (otomatik kayıt hatası için `lolcounters.mockSaveFail = '1'`; yalnızca rün
-  hatası / boş rün için `lolcounters.mockRunesFail` / `mockRunesEmpty = '1'`;
+  hatası / boş rün için `lolcounters.mockRunesFail` / `mockRunesEmpty` / `mockRunesPartial = '1'`;
   içe aktarma için `lolcounters.mockImport = 'full' | 'fail' | 'noSpells'`).
   Küçük pencere: `http://localhost:1420/compact`; durumu
   `lolcounters.mockChampSelect` seçer (`none`, `waiting`, `banning`,

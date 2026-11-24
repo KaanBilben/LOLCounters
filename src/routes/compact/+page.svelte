@@ -181,7 +181,7 @@
     | { kind: 'none' }
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
-    | { kind: 'ok'; data: RuneOptions };
+    | { kind: 'ok'; data: RuneOptions; key: string };
   let runeState = $state.raw<RuneState>({ kind: 'none' });
   let runeIdx = $state(0);
   const runeKey = $derived(
@@ -202,7 +202,7 @@
     runeOptions(l as Lane, Number(c), o ? Number(o) : null).then(
       (d) => {
         if (my !== runeSeq) return;
-        runeState = { kind: 'ok', data: d };
+        runeState = { kind: 'ok', data: d, key };
         runeIdx = d.gold ?? 0;
       },
       (e) => {
@@ -211,7 +211,11 @@
     );
   });
   const runeList = $derived(runeState.kind === 'ok' ? runeState.data.options : []);
-  const runeGold = $derived(runeState.kind === 'ok' ? runeState.data.gold : null);
+  // the shown options belong to an earlier opponent/lane until the new ones arrive: no gold
+  // highlight for the wrong opponent, and nothing to import
+  const runeStale = $derived(runeState.kind === 'ok' && runeState.key !== runeKey);
+  const runeGold = $derived(runeState.kind === 'ok' && !runeStale ? runeState.data.gold : null);
+  const runeError = $derived(runeState.kind === 'ok' ? runeState.data.error : null);
   const page = $derived<RunePage | undefined>(runeList[runeIdx]);
   const treePerks = (p: RunePage, tree: number) =>
     p.perks
@@ -239,7 +243,9 @@
   const build = $derived(mineRec?.build ?? null);
   // the matchup's spells when the gold option exists, else the lane's general spells
   const spellKeys = $derived(
-    runeState.kind === 'ok' && runeState.data.spells.length ? runeState.data.spells : (build?.spells ?? [])
+    runeState.kind === 'ok' && !runeStale && runeState.data.spells.length
+      ? runeState.data.spells
+      : (build?.spells ?? [])
   );
   const spells = $derived(
     data ? spellKeys.map((k) => data!.spells[String(k)]).filter((s): s is Spell => !!s) : []
@@ -266,8 +272,12 @@
     importSeq++;
     importState = { kind: 'idle' };
   });
+  // a page without its 3 shards cannot be written (ddragon::order_perks)
+  const importBlocked = $derived(
+    runeStale ? 'Yeni rakibin rünleri yükleniyor…' : page && page.shards.length !== 3 ? 'Bu sayfanın parçaları alınamadı; içe aktarılamaz' : null
+  );
   async function importPage(confirm: number | null) {
-    if (!page || importState.kind === 'busy') return;
+    if (!page || importBlocked || importState.kind === 'busy') return;
     const my = ++importSeq;
     importState = { kind: 'busy' };
     try {
@@ -280,6 +290,7 @@
     }
   }
   const importTip = $derived.by(() => {
+    if (importBlocked && importState.kind !== 'done') return importBlocked;
     switch (importState.kind) {
       case 'done':
         return importState.spells
@@ -549,6 +560,17 @@
                 </button>
               </div>
             {/if}
+            {#if runeError !== null}
+              <button
+                type="button"
+                class="rerr"
+                aria-label="Rün verisi eksik, yeniden dene"
+                use:tooltip={`Bazı rün verisi alınamadı (${runeError}) · yeniden dene`}
+                onclick={() => retries++}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4.5V9h-4.5" /></svg>
+              </button>
+            {/if}
             {#if runeGold !== null && opponent !== null}
               <button
                 type="button"
@@ -574,7 +596,7 @@
           {:else if !page}
             <div class="page empty"><span>Bu lane için rün verisi yok</span></div>
           {:else}
-            <div class="page" class:gold={runeIdx === runeGold}>
+            <div class="page" class:gold={runeIdx === runeGold} class:stale={runeStale} aria-busy={runeStale}>
               <div class="tree" aria-label="Ana ağaç">
                 {#each primaryPerks as r, i (r.id)}
                   <GameIcon src={r.icon} name={r.name} size={i === 0 ? 30 : 20} shape="round" />
@@ -636,7 +658,7 @@
               class="btn btn-sm btn-primary import"
               class:done={importState.kind === 'done'}
               class:failed={importState.kind === 'error'}
-              disabled={importState.kind === 'busy'}
+              disabled={importState.kind === 'busy' || (importBlocked !== null && importState.kind !== 'done')}
               aria-label={importTip}
               use:tooltip={importTip}
               onclick={() => importPage(null)}
@@ -1258,6 +1280,30 @@
     box-shadow:
       0 0 0 1px rgba(240, 192, 80, 0.25),
       0 0 12px rgba(240, 192, 80, 0.3);
+  }
+  .page.stale {
+    opacity: 0.5;
+  }
+  .rerr {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 2px;
+    color: var(--low);
+  }
+  .rerr svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rerr:hover {
+    color: var(--gold-light);
+    background: rgba(200, 170, 110, 0.12);
   }
   .page.empty {
     justify-content: center;
