@@ -141,6 +141,17 @@ export interface ChampSelectState {
 export interface RuneOptions {
   options: RunePage[];
   gold: number | null;
+  /** LC-014 "Önerilen": highest win rate of the non-matchup options with enough games. */
+  best: number | null;
   /** The matchup's spells when `gold` is set, else the lane's general spells. */
   spells: number[];
+  /** A source failed and the list may be incomplete (one page, no shards): offer a retry. */
+  error: string | null;
 }
+
+/**
+ * LC-015 import_loadout (src-tauri/src/lcu.rs ImportOutcome): `done` — the page was written to
+ * the client's "LOLCounters" page and selected (`spells`: the spells were set too);
+ * `needsConfirm` — no free page slot, ask before overwriting page `page` (send `id` back).
+ */
+export type ImportOutcome = { kind: 'done'; spells: boolean } | { kind: 'needsConfirm'; id: number; page: string };

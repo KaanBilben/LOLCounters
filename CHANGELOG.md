@@ -1,6 +1,22 @@
 # CHANGELOG
 
-## LC-014 — Rün seçenekleri arayüzü: 3 sayfa, geçiş ve altın vurgu
+## LC-015 — Rün ve büyü içe aktarma
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (uç noktalar gerçek istemcide denenmedi) · İlgili: LC-008, LC-014
+
+> ### 2026-11-24 · Claude — "İçe aktar" düğmesi
+> - **Ne:** küçük pencerede gösterilen rün sayfası ve büyüler tek tıkla istemciye yazılır: "LOLCounters" sayfasının üstüne (yoksa yeni sayfa; yer yoksa pencerede onay, sonra seçili sayfa). Sayfa seçili yapılır; seçim sürüyorsa büyüler `my-selection` ile ayarlanır (bir tuştaki büyü o tuşta kalır). `ddragon::order_perks` 9'lu listeyi ağaç/sıraya göre dizer; `lcu.rs` bağlıyken REST bağlantısını saklar (`Conn`), `import_target`, `order_spells`, `import_loadout`; yeni komut `import_loadout`. Düğme durumları: İçe aktar / Aktarılıyor… / Aktarıldı / Tekrar dene; sayfa ya da rakip değişince sıfırlanır. Sahte veri: `mockImport`
+> - **Neden:** önerilen rünleri ve büyüleri elle kurmadan kullanmak
+> - **Etkilenen:** LC-008 (`lcu.rs` artık istek üzerine istemciye yazıyor; REST istemcisi bağlantıda bir kez kuruluyor)
+> - **Dosyalar:** src-tauri/src/lcu.rs, src-tauri/src/ddragon.rs, src-tauri/src/lib.rs, src/routes/compact/+page.svelte, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, README.md, CLAUDE.md
+> - **Commit:** 9322a9b
+>
+> ### 2026-11-24 · Claude — Fix: inceleme bulguları (kullanıcı sayfası silinmez, tek içe aktarma)
+> - **Ne:** onaylanan kullanıcı sayfasında PUT reddedilirse artık `DELETE` + `POST` yapılmaz, hata gösterilir (yedek yol yalnızca uygulamanın "LOLCounters" sayfası için); `import_loadout` tek seferde bir tane çalışır (üst üste tıklama ikinci sayfa açmaz). Arayüz: rakip ya da lane değişince yeni rünler gelene kadar eski sayfa soluk, altın etiket gizli ve içe aktarma kapalı (eski rakibin sayfası yeni rakibe "önerilen" diye yazılmaz); parçası olmayan sayfada düğme kapalı, nedeni ipucunda. Belge: takımın büyüleri yalnızca içe aktarmada çözümleniyor (yalnızca benimki kullanılıyor); TODO.md'ye canlı test adımları
+> - **Neden:** 4 yönlü inceleme + şüpheci doğrulama; en ciddisi, geçersiz bir sayfada kullanıcının onayladığı sayfanın kalıcı silinebilmesiydi
+> - **Dosyalar:** src-tauri/src/lcu.rs, src/routes/compact/+page.svelte, docs/data-sources.md, TODO.md
+> - **Commit:** 9d3013d
+
+## LC-014 — Rün seçenekleri arayüzü: yan yana 3 kart ve sarı etiketler
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-009, LC-013, LC-015
 
 > ### 2026-11-24 · Claude — Küçük pencerede tam rün sayfası
@@ -8,7 +24,16 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** tek sayfa yerine seçenek görmek ve eşleşmeye göre en iyisini hemen tanımak
 > - **Etkilenen:** LC-009 (kilit sonrası görünüm değişti)
 > - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/mock.ts, README.md, CLAUDE.md
-> - **Commit:** —
+> - **Commit:** 51ac2a9
+>
+> ### 2026-11-24 · Claude — → LC-013 ve LC-015 düzeltmeleriyle değiştirildi
+>
+> ### 2026-11-24 · Claude — Değişiklik: ‹ › geçiş yerine yan yana 3 dikey kart
+> - **Ne:** LoL'ün önerilen sayfalarına benzer 3 dikey kart (üstte ana rün, altında 3 ana rün, çizgi, ikincil ağaç + 2 rün, en altta oran ve maç); sağ üstte sarı "★ Önerilen" (`best`) ve "Eşleşmeye özel" (`gold`) etiketleri; karta tıklayınca seçilir (mavi çerçeve), "İçe aktar" seçili kartı yazar; açılışta eşleşme kartı, yoksa "Önerilen" seçili. ‹ ›, noktalar ve "★ {rakip} için önerilen" etiketi kalktı. Kartlar bir radiogroup: tek sekme durağı, ok tuşlarıyla geçiş; kart etiketi etiketleri, rün adlarını ve oranı okur; içteki ikonlar odaklanmaz (`GameIcon` yeni `focusable` seçeneği). Küçük pencere 380×260 → 380×356 (`compact.rs` `HEIGHT`)
+> - **Neden:** kullanıcı isteği: 3 seçeneği aynı anda görmek, LoL istemcisine benzer görünüm
+> - **Etkilenen:** LC-013 (`RuneOptions.best`, `scoring::best_rune_option`), LC-009 (küçük pencere boyu)
+> - **Dosyalar:** src/routes/compact/+page.svelte, src/lib/GameIcon.svelte, src-tauri/src/compact.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, docs/scoring.md, README.md, TODO.md
+> - **Commit:** 7c2418e
 
 ## LC-013 — Rün seçenekleri verisi: en çok oynanan 3 sayfa ve eşleşme sayfası
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: LC-002, LC-014, LC-015
@@ -18,6 +43,15 @@ Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi · İlgili: L
 > - **Neden:** küçük pencerede 3 rün seçeneği ve eşleşmeye göre en iyisinin vurgusu; u.gg overview yalnızca tek sayfa veriyor
 > - **Dosyalar:** src-tauri/src/ugg.rs, src-tauri/src/scoring.rs, src-tauri/src/lib.rs, src-tauri/src/cache.rs, src/lib/types.ts, src/lib/api.ts, src/lib/mock.ts, docs/data-sources.md, docs/scoring.md
 > - **Commit:** a4610f6
+>
+> ### 2026-11-24 · Claude — Fix: inceleme bulguları (tek indirme, eksik veride yeniden deneme)
+> - **Ne:** `lane_data` dosya başına kapıyla aynı dosyayı bir kez indirir (rakip değişince ~3 MB `builds` ikinci kez inmez); `RuneOptions.error`: `builds` ya da overview alınamadıysa eldeki seçenekler hatayla döner ve pencerede "yeniden dene" simgesi çıkar (önceden tek sayfaya sessizce düşüyordu); overview yoksa parçalar eşleşme sayfasından. Sahte veri: `mockRunesPartial` (branch: `feature/run-import`, LC-015 düzeltmesiyle aynı commit)
+> - **Neden:** inceleme: geçici bir hata seçim boyunca tek sayfa / parçasız sayfa bırakıyordu
+> - **Etkilenen:** LC-014 (rün başlığında yeniden dene simgesi)
+> - **Dosyalar:** src-tauri/src/lib.rs, src/lib/types.ts, src/lib/mock.ts, src/routes/compact/+page.svelte, docs/data-sources.md, CLAUDE.md
+> - **Commit:** 9d3013d
+>
+> ### 2026-11-24 · Claude — → LC-014 kart düzeniyle değiştirildi (`RuneOptions.best`: "Önerilen" kart)
 
 ## LC-012 — Küçük pencere seçim başında lane'siz açılıyor
 Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
@@ -74,6 +108,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-008
 > ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
 >
 > ### 2026-11-24 · Claude — → LC-014 tarafından değiştirildi
+>
+> ### 2026-11-24 · Claude — → LC-014 kart düzeniyle değiştirildi (pencere 380×356)
 
 ## LC-008 — LoL istemcisi (LCU): şampiyon seçimi bağlantısı
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
@@ -101,6 +137,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
 > ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
 >
 > ### 2026-11-24 · Claude — → LC-012 tarafından değiştirildi
+>
+> ### 2026-11-24 · Claude — → LC-015 tarafından değiştirildi
 
 ## LC-007 — Kolay açılış: simge, kurulum, tepsi, tek kopya, autostart
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003, LC-004

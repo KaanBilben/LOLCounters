@@ -46,9 +46,14 @@ gösterilir (`pick_rune_options`, `RUNE_OPTIONS = 3`). Veri:
 
 - **Seçenekler:** ana rün + ikincil ağaç grupları maç sayısına göre; her grubun
   en çok oynanan tam sayfası. Oran ve maç sayısı o sayfanındır.
-- **Altın vurgu:** u.gg her rakip için tek bir önerilen sayfa verir. Bu sayfa
-  en az `MATCHUP_PAGE_MIN_GAMES = 100` maçlıysa vurgulanır: aynı ana rün +
+- **"Eşleşmeye özel" kartı:** u.gg her rakip için tek bir önerilen sayfa verir. Bu sayfa
+  en az `MATCHUP_PAGE_MIN_GAMES = 100` maçlıysa sarı "Eşleşmeye özel" etiketi alır: aynı ana rün +
   ikincil ağaçtaki seçeneğin yerine geçer; böyle bir seçenek yoksa 3.
-  seçeneğin yerine. 100 maçtan azsa vurgu yoktur, seçenekler değişmez.
-- **Büyüler:** altın seçenek varsa eşleşmenin büyüleri, yoksa lane'in genel
+  seçeneğin yerine. 100 maçtan azsa etiket yoktur, seçenekler değişmez.
+- **"Önerilen" kartı** (`best_rune_option`): en az `RECOMMENDED_PAGE_MIN_GAMES = 100`
+  maçlı kartlar içinde kazanma oranı en yüksek olan; oran eşitse maçı çok olan.
+  Eşleşme kartı aday değildir (oranı yalnızca bu rakibe karşı, genel kartlarla aynı
+  ölçekte değil), bu yüzden iki etiket aynı karta düşmez.
+- **Açılışta seçili kart:** eşleşme kartı, yoksa "Önerilen", yoksa ilk kart.
+- **Büyüler:** eşleşme kartı varsa eşleşmenin büyüleri, yoksa lane'in genel
   büyüleri.

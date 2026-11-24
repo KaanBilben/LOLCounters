@@ -1,4 +1,5 @@
-//! LoL istemcisi (LCU) bağlantısı: şampiyon seçimini okur. LCU ile ilgili bütün kod
+//! LoL istemcisi (LCU) bağlantısı: şampiyon seçimini okur; yalnızca kullanıcı "İçe aktar"a
+//! basınca rün sayfası ve büyü yazar (LC-015). LCU ile ilgili bütün kod
 //! yalnızca bu dosyadadır; biçim ve adresler: docs/data-sources.md "League client (LCU)".
 //!
 //! Boşta CPU harcamaz:
@@ -11,6 +12,7 @@
 //!
 //! Riot kuralı: oturumdan yalnızca hücre numarası, şampiyon, seçim niyeti, atanmış rol ve
 //! eylemler (seçim / ban) okunur; oyuncu adı, summonerId, puuid gibi alanlar hiç çözümlenmez.
+//! İçe aktarırken ayrıca yalnızca kendi büyülerim ve kendi rün sayfalarımın adı / id'si okunur.
 
 use crate::settings::Lane;
 use base64::Engine;
@@ -59,6 +61,14 @@ const SESSION_EVENT: &str = "OnJsonApiEvent_lol-champ-select_v1_session";
 const PHASE_EVENT: &str = "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase";
 /// Arayüze gönderilen Tauri olayı.
 pub const CHAMP_SELECT_EVENT: &str = "champ-select";
+
+// LC-015: içe aktarma (yalnızca kullanıcı tıklayınca).
+const PAGES_URI: &str = "/lol-perks/v1/pages";
+const INVENTORY_URI: &str = "/lol-perks/v1/inventory";
+const CURRENT_PAGE_URI: &str = "/lol-perks/v1/currentpage";
+const MY_SELECTION_URI: &str = "/lol-champ-select/v1/session/my-selection";
+/// İçe aktarılan sayfanın adı; aynı adlı sayfa varsa sormadan onun üstüne yazılır.
+pub const IMPORT_PAGE_NAME: &str = "LOLCounters";
 
 // --- Kurulum klasörü ve lockfile ---------------------------------------------
 
@@ -378,6 +388,8 @@ struct Inner {
     /// Seçimden hemen önceki aşamada gelen son oturum (LC-012): istemci oturumu
     /// "ChampSelect" aşamasından önce gönderebilir; aşama gelince bununla (lane'iyle) açılır.
     pending: Option<ChampSelectState>,
+    /// Bağlıyken istemciye istek için (LC-015 içe aktarma); bağlantı kopunca silinir.
+    conn: Option<Conn>,
 }
 
 /// Oturum çerçevesi geldiğinde, son bilinen aşamaya göre ne yapılır.
@@ -417,6 +429,9 @@ impl Inner {
         match change {
             Change::Connected(c) => {
                 self.connected = c;
+                if !c {
+                    self.conn = None;
+                }
                 self.phase = None;
                 self.active = false;
                 self.pending = None;
@@ -575,6 +590,186 @@ pub async fn set_my_lane(app: &AppHandle, lane: Option<Lane>) -> ChampSelectPayl
     update(app, Change::Lane(lane)).await
 }
 
+// --- İçe aktarma (LC-015) ------------------------------------------------------
+
+/// Kendi rün sayfalarımdan yalnızca gerekenler.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PerkPageInfo {
+    pub id: i64,
+    #[serde(deserialize_with = "null_default")]
+    pub name: String,
+    pub is_editable: bool,
+    pub current: bool,
+}
+
+/// Sayfanın nereye yazılacağı.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportTarget {
+    /// "LOLCounters" sayfası var: sormadan üstüne yazılır.
+    Update(i64),
+    /// Boş yer var: yeni sayfa.
+    Create,
+    /// Yer yok: bu sayfanın (id, ad) üstüne yazmak için kullanıcıya sorulur.
+    Ask(i64, String),
+    /// Kullanıcı bu sayfayı onayladı ve hâlâ aynı: üstüne yazılır.
+    Overwrite(i64),
+    /// Düzenlenebilir sayfa yok.
+    NoPage,
+}
+
+/// Yer yoksa seçili (o düzenlenemiyorsa ilk) düzenlenebilir sayfa önerilir; yalnızca kullanıcının
+/// onayladığı sayfa (`confirmed`) hâlâ önerilen sayfaysa üstüne yazılır, değilse yeniden sorulur.
+pub fn import_target(pages: &[PerkPageInfo], can_add: bool, confirmed: Option<i64>) -> ImportTarget {
+    if let Some(p) = pages.iter().find(|p| p.is_editable && p.name == IMPORT_PAGE_NAME) {
+        return ImportTarget::Update(p.id);
+    }
+    if can_add {
+        return ImportTarget::Create;
+    }
+    let editable = || pages.iter().filter(|p| p.is_editable);
+    match editable().find(|p| p.current).or_else(|| editable().next()) {
+        None => ImportTarget::NoPage,
+        Some(p) if confirmed == Some(p.id) => ImportTarget::Overwrite(p.id),
+        Some(p) => ImportTarget::Ask(p.id, p.name.clone()),
+    }
+}
+
+/// Büyüler (D, F): şu an bir tuşta olan büyü o tuşta kalır (ör. Flash F'deyse F'de), yoksa u.gg sırası.
+pub fn order_spells(current: (i64, i64), wanted: [i64; 2]) -> (i64, i64) {
+    let [a, b] = wanted;
+    if a == current.1 || b == current.0 { (b, a) } else { (a, b) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ImportOutcome {
+    /// Sayfa yazıldı ve seçildi; `spells`: büyüler de ayarlandı mı (seçim dışında ya da hatada değil).
+    Done { spells: bool },
+    /// Yer yok: `page` adlı sayfanın üstüne yazmak için onay gerekir (`id` onayla geri gelir).
+    NeedsConfirm { id: i64, page: String },
+}
+
+async fn lcu_res(req: reqwest::RequestBuilder) -> Result<reqwest::Response, String> {
+    let res = req.send().await.map_err(|e| format!("İstemciye ulaşılamadı: {e}"))?;
+    let st = res.status();
+    if st.is_success() { Ok(res) } else { Err(format!("İstemci isteği reddetti ({})", st.as_u16())) }
+}
+
+async fn lcu_json<T: serde::de::DeserializeOwned>(req: reqwest::RequestBuilder) -> Result<T, String> {
+    lcu_res(req).await?.json().await.map_err(|e| format!("İstemci yanıtı okunamadı: {e}"))
+}
+
+async fn create_page(conn: &Conn, body: &serde_json::Value) -> Result<i64, String> {
+    let p: PerkPageInfo = lcu_json(conn.req(reqwest::Method::POST, PAGES_URI).json(body)).await?;
+    Ok(p.id)
+}
+
+/// Büyülerimi yazar; şu anki tuş yerleşimine göre sıralar (`order_spells`).
+async fn set_spells(conn: &Conn, wanted: [i64; 2]) -> Result<(), String> {
+    #[derive(Default, Deserialize)]
+    #[serde(rename_all = "camelCase", default)]
+    struct Mine {
+        local_player_cell_id: Option<i64>,
+        #[serde(deserialize_with = "null_default")]
+        my_team: Vec<Slot>,
+    }
+    #[derive(Default, Deserialize)]
+    #[serde(rename_all = "camelCase", default)]
+    struct Slot {
+        #[serde(deserialize_with = "null_default")]
+        cell_id: i64,
+        #[serde(deserialize_with = "null_default")]
+        spell1_id: i64,
+        #[serde(deserialize_with = "null_default")]
+        spell2_id: i64,
+    }
+    let s: Mine = lcu_json(conn.req(reqwest::Method::GET, SESSION_URI)).await?;
+    let current = s
+        .local_player_cell_id
+        .and_then(|c| s.my_team.iter().find(|m| m.cell_id == c))
+        .map(|m| (m.spell1_id, m.spell2_id))
+        .unwrap_or_default();
+    let (d, f) = order_spells(current, wanted);
+    let body = serde_json::json!({ "spell1Id": d, "spell2Id": f });
+    lcu_res(conn.req(reqwest::Method::PATCH, MY_SELECTION_URI).json(&body)).await.map(|_| ())
+}
+
+/// Kullanıcı "İçe aktar"a basınca: rün sayfasını "LOLCounters" sayfasına (yoksa yeni sayfaya; yer
+/// yoksa onaydan sonra seçili sayfaya) yazar ve seçer; seçim sürüyorsa büyüleri de ayarlar.
+/// Hiçbir şeyi seçmez, kilitlemez, banlamaz.
+pub async fn import_loadout(
+    app: &AppHandle,
+    primary: i64,
+    secondary: i64,
+    perks: [i64; 9],
+    spells: Option<[i64; 2]>,
+    confirmed: Option<i64>,
+) -> Result<ImportOutcome, String> {
+    use reqwest::Method;
+    // Aynı anda tek içe aktarma: üst üste tıklamalar iki "LOLCounters" sayfası açmasın.
+    static IMPORTING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _one = IMPORTING.lock().await;
+    let st = app.state::<LcuState>();
+    let (conn, active) = {
+        let g = crate::lock(&st.0);
+        (g.conn.clone(), g.active)
+    };
+    let conn = conn.ok_or("LoL istemcisi bağlı değil")?;
+    let pages: Vec<PerkPageInfo> = lcu_json(conn.req(Method::GET, PAGES_URI)).await?;
+    let can_add = if pages.iter().any(|p| p.is_editable && p.name == IMPORT_PAGE_NAME) {
+        false
+    } else {
+        #[derive(Default, Deserialize)]
+        #[serde(rename_all = "camelCase", default)]
+        struct Inventory {
+            can_add_custom_page: bool,
+        }
+        // okunamazsa yer yok sayılır: kullanıcıya sorulur, hiçbir sayfa sessizce silinmez
+        lcu_json::<Inventory>(conn.req(Method::GET, INVENTORY_URI)).await.is_ok_and(|i| i.can_add_custom_page)
+    };
+    let body = |id: Option<i64>| {
+        let mut v = serde_json::json!({
+            "name": IMPORT_PAGE_NAME,
+            "primaryStyleId": primary,
+            "subStyleId": secondary,
+            "selectedPerkIds": perks,
+            "current": true,
+        });
+        if let Some(id) = id {
+            v["id"] = id.into();
+        }
+        v
+    };
+    let id = match import_target(&pages, can_add, confirmed) {
+        ImportTarget::NoPage => return Err("Düzenlenebilir rün sayfası yok".into()),
+        ImportTarget::Ask(id, page) => return Ok(ImportOutcome::NeedsConfirm { id, page }),
+        ImportTarget::Create => create_page(&conn, &body(None)).await?,
+        // kullanıcının kendi sayfası: yalnızca düzenlenir, hiçbir durumda silinmez
+        ImportTarget::Overwrite(id) => {
+            lcu_res(conn.req(Method::PUT, &format!("{PAGES_URI}/{id}")).json(&body(Some(id)))).await?;
+            id
+        }
+        ImportTarget::Update(id) => {
+            let uri = format!("{PAGES_URI}/{id}");
+            match lcu_res(conn.req(Method::PUT, &uri).json(&body(Some(id)))).await {
+                Ok(_) => id,
+                // uygulamanın kendi sayfası düzenlemeyi kabul etmezse: silip yenisini oluştur
+                Err(_) => {
+                    lcu_res(conn.req(Method::DELETE, &uri)).await?;
+                    create_page(&conn, &body(None)).await?
+                }
+            }
+        }
+    };
+    let _ = lcu_res(conn.req(Method::PUT, CURRENT_PAGE_URI).json(&id)).await;
+    let spells = match spells {
+        Some(w) if active => set_spells(&conn, w).await.is_ok(),
+        _ => false,
+    };
+    Ok(ImportOutcome::Done { spells })
+}
+
 // --- TLS ---------------------------------------------------------------------
 
 fn provider() -> Arc<rustls::crypto::CryptoProvider> {
@@ -715,20 +910,35 @@ async fn connect_with_retry(lf: &Lockfile) -> Option<(Ws, Arc<ClientConfig>)> {
     None
 }
 
+/// İstemcinin REST adresi ve parolası (bağlıyken `Inner.conn`).
+#[derive(Debug, Clone)]
+struct Conn {
+    client: reqwest::Client,
+    base: String,
+    password: String,
+}
+
+impl Conn {
+    fn new(lf: &Lockfile, tls: &ClientConfig) -> Option<Self> {
+        // `no_proxy`: HTTPS_PROXY ya da Windows proxy ayarı LCU isteğini (parola başlığıyla) bir
+        // proxy'ye göndermesin; yedek doğrulayıcı yalnızca hedef adı denetlediği için bu şarttır.
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .use_preconfigured_tls(tls.clone())
+            .timeout(Duration::from_secs(5))
+            .build()
+            .ok()?;
+        Some(Self { client, base: format!("https://127.0.0.1:{}", lf.port), password: lf.password.clone() })
+    }
+
+    fn req(&self, method: reqwest::Method, uri: &str) -> reqwest::RequestBuilder {
+        self.client.request(method, format!("{}{uri}", self.base)).basic_auth("riot", Some(&self.password))
+    }
+}
+
 /// Bağlanınca bir kez: güncel aşama, seçimdeysek oturum (WebSocket yalnızca değişiklik gönderir).
-async fn rest_sync(app: &AppHandle, lf: &Lockfile, tls: &ClientConfig) {
-    // `no_proxy`: HTTPS_PROXY ya da Windows proxy ayarı LCU isteğini (parola başlığıyla) bir
-    // proxy'ye göndermesin; yedek doğrulayıcı yalnızca hedef adı denetlediği için bu şarttır.
-    let Ok(client) = reqwest::Client::builder()
-        .no_proxy()
-        .use_preconfigured_tls(tls.clone())
-        .timeout(Duration::from_secs(5))
-        .build()
-    else {
-        return;
-    };
-    let base = format!("https://127.0.0.1:{}", lf.port);
-    let get = |uri: &str| client.get(format!("{base}{uri}")).basic_auth("riot", Some(&lf.password));
+async fn rest_sync(app: &AppHandle, conn: &Conn) {
+    let get = |uri: &str| conn.req(reqwest::Method::GET, uri);
     let Ok(res) = get(PHASE_URI).send().await else { return };
     let Ok(phase) = res.json::<String>().await else { return };
     let in_select = phase == "ChampSelect";
@@ -790,7 +1000,11 @@ async fn serve(app: &AppHandle, lf: &Lockfile, mut ws: Ws, tls: Arc<ClientConfig
         }
     }
     update(app, Change::Connected(true)).await;
-    rest_sync(app, lf, &tls).await;
+    if let Some(conn) = Conn::new(lf, &tls) {
+        let st = app.state::<LcuState>();
+        crate::lock(&st.0).conn = Some(conn.clone());
+        rest_sync(app, &conn).await;
+    }
     while let Some(msg) = ws.next().await {
         match msg {
             Ok(Message::Text(t)) => {

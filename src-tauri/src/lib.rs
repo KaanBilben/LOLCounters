@@ -697,12 +697,15 @@ struct RunesState {
     options: LaneCache<ChampKey, Vec<ugg::RunePage>>,
     /// (yama, şampiyon, rakip) → lane → eşleşme sayfası
     matchups: LaneCache<(String, i64, i64), ugg::MatchupPage>,
+    /// Dosya başına kapı: aynı dosyayı isteyen ikinci çağrı ilk indirmeyi bekler (iki kez indirilmez).
+    gates: Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 /// Lane başına veri: bellek → disk → ağ (bir kez). Boş sonuç (u.gg'de dosya yok) diske yazılmaz,
 /// yalnızca bellekte tutulur; `recheck_static` tetiklenince atılır (`forget_empty`).
 async fn lane_data<K, V, Fut>(
     mem: &LaneCache<K, V>,
+    gates: &Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
     key: K,
     path: PathBuf,
     fetch: impl FnOnce() -> Fut,
@@ -712,6 +715,13 @@ where
     V: Serialize + serde::de::DeserializeOwned,
     Fut: std::future::Future<Output = Result<HashMap<Lane, V>, String>>,
 {
+    let cached = lock(mem).get(&key).cloned();
+    if let Some(d) = cached {
+        return Ok(d);
+    }
+    let gate = lock(gates).entry(path.clone()).or_default().clone();
+    let _open = gate.lock().await;
+    // kapıda beklerken önceki çağrı indirmiş olabilir
     let cached = lock(mem).get(&key).cloned();
     if let Some(d) = cached {
         return Ok(d);
@@ -738,8 +748,13 @@ pub struct RuneOptions {
     pub options: Vec<ugg::RunePage>,
     /// Eşleşmeye özel sayfa olan seçenek (`scoring::pick_rune_options`); yoksa `None`.
     pub gold: Option<usize>,
+    /// "Önerilen" seçenek (`scoring::best_rune_option`); yoksa `None`.
+    pub best: Option<usize>,
     /// Altın seçenek varsa eşleşmenin büyüleri, yoksa lane'in genel büyüleri.
     pub spells: Vec<i64>,
+    /// Bir kaynak alınamadı ve liste eksik olabilir (ör. tek sayfa, parçasız): arayüz yeniden
+    /// denemeyi sunar. Hata önbelleğe yazılmadığı için yeniden deneme yeniden indirir.
+    pub error: Option<String>,
 }
 
 /// Kilitledikten sonra: şampiyonumun bu lane'deki rün seçenekleri (`builds`) ve rakip biliniyorsa
@@ -761,6 +776,7 @@ async fn rune_options(
     let (general, champ, mu) = futures::join!(
         lane_data(
             &runes.options,
+            &runes.gates,
             (patch.patch.clone(), champion),
             patch_dir.join(format!("runes_{champion}.json")),
             || ugg::fetch_rune_options(client, &patch, champion),
@@ -770,6 +786,7 @@ async fn rune_options(
             let Some(e) = enemy else { return Ok(None) };
             lane_data(
                 &runes.matchups,
+                &runes.gates,
                 (patch.patch.clone(), champion, e),
                 patch_dir.join(format!("mu_{champion}_{e}.json")),
                 || ugg::fetch_matchup_pages(client, &patch, champion, e),
@@ -778,11 +795,24 @@ async fn rune_options(
             .map(Some)
         },
     );
-    let overview = champ.ok().and_then(|c| c.data.overview.get(&lane).cloned());
-    let shards = overview.as_ref().map(|b| b.runes.shards.clone()).unwrap_or_default();
-    let mut list: Vec<ugg::RunePage> = match &general {
-        Ok(g) => g.get(&lane).cloned().unwrap_or_default(),
-        Err(_) => Vec::new(),
+    // Liste eksik kalabilecek hata: `builds` ya da (parçaları veren) overview alınamadı.
+    let (overview, champ_error) = match champ {
+        Ok(c) => (c.data.overview.get(&lane).cloned(), c.error),
+        Err(e) => (None, Some(e)),
+    };
+    // eşleşme yarısının hatası rünleri etkilemez; yalnızca overview eksikse sayılır
+    let champ_error = champ_error.filter(|_| overview.is_none());
+    let mu_page = mu.ok().flatten().and_then(|m| m.get(&lane).cloned());
+    // Parçalar overview'dan; o yoksa eşleşme sayfasından (ikisi de aynı biçim).
+    let shards = overview
+        .as_ref()
+        .map(|b| b.runes.shards.clone())
+        .filter(|s| !s.is_empty())
+        .or_else(|| mu_page.as_ref().map(|m| m.runes.shards.clone()))
+        .unwrap_or_default();
+    let (mut list, general_error) = match general {
+        Ok(g) => (g.get(&lane).cloned().unwrap_or_default(), None),
+        Err(e) => (Vec::new(), Some(e)),
     };
     for p in &mut list {
         p.shards.clone_from(&shards);
@@ -793,19 +823,37 @@ async fn rune_options(
     {
         list.push(b.runes.clone());
     }
+    let error = general_error.or(champ_error);
     if list.is_empty() {
-        return match general {
-            Err(e) => Err(e),
-            Ok(_) => Ok(RuneOptions { options: Vec::new(), gold: None, spells: Vec::new() }),
+        return match error {
+            Some(e) => Err(e),
+            None => Ok(RuneOptions { options: Vec::new(), gold: None, best: None, spells: Vec::new(), error: None }),
         };
     }
-    let mu_page = mu.ok().flatten().and_then(|m| m.get(&lane).cloned());
     let (options, gold) = scoring::pick_rune_options(&list, mu_page.as_ref().map(|m| &m.runes));
     let spells = match (gold, &mu_page) {
         (Some(_), Some(m)) if m.spells.len() == 2 => m.spells.clone(),
         _ => overview.map(|b| b.spells).unwrap_or_default(),
     };
-    Ok(RuneOptions { options, gold, spells })
+    let best = scoring::best_rune_option(&options, gold);
+    Ok(RuneOptions { options, gold, best, spells, error })
+}
+
+/// LC-015: küçük penceredeki "İçe aktar". Sayfayı istemcinin sırasına dizer (`order_perks`) ve
+/// istemciye yazar; yer yoksa önce `needsConfirm` döner, onaylanan sayfa `confirm` ile gelir.
+#[tauri::command]
+async fn import_loadout(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    page: ugg::RunePage,
+    spells: Vec<i64>,
+    confirm: Option<i64>,
+) -> Result<lcu::ImportOutcome, String> {
+    let data = static_payload(&app, &state).await?;
+    let perks = ddragon::order_perks(&data.data.runes, page.primary_tree, page.secondary_tree, &page.perks, &page.shards)
+        .ok_or("Rün sayfası eksik; içe aktarılamadı")?;
+    let spells = <[i64; 2]>::try_from(spells).ok();
+    lcu::import_loadout(&app, page.primary_tree, page.secondary_tree, perks, spells, confirm).await
 }
 
 /// Ana pencereyi öne getirir (küçük penceredeki düğme).
@@ -863,6 +911,7 @@ pub fn run() {
             champion_matchup,
             ban_suggestions,
             rune_options,
+            import_loadout,
             open_main_window,
             close_compact,
             open_compact_preview

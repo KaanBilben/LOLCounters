@@ -12,13 +12,15 @@
 // 'banning' (LC-011) shows the ban suggestions for the hovered champion (first top-lane pool
 // champion); 'banningNoIntent' is the same phase before a champion is hovered.
 // 'locked' (LC-014) shows the rune options: the matchup (gold) option is the 2nd one, except
-// against Ahri (103), who has none. Only the runes fail with 'lolcounters.mockRunesFail' = '1';
-// 'lolcounters.mockRunesEmpty' = '1' returns no options.
+// against Ahri (103), who has none; "Önerilen" (best) is then the 1st, vs Ahri the 2nd. Only the runes fail with 'lolcounters.mockRunesFail' = '1';
+// 'lolcounters.mockRunesEmpty' = '1' returns no options; 'lolcounters.mockRunesPartial' = '1' one page
+// without shards and an error (a source failed).
 
 import type {
   AutostartState,
   BanSuggestion,
   Build,
+  ImportOutcome,
   Champion,
   Item,
   Lane,
@@ -538,7 +540,7 @@ export async function closeCompact(): Promise<void> {
 }
 
 export async function openCompactPreview(): Promise<void> {
-  window.open('/compact', 'lolcounters-compact', 'popup,width=380,height=260');
+  window.open('/compact', 'lolcounters-compact', 'popup,width=380,height=356');
 }
 
 // --- LC-013: rune options (mirrors scoring::pick_rune_options) ---------------
@@ -551,10 +553,41 @@ const MOCK_RUNE_OPTIONS: RunePage[] = [
   { primaryTree: 8000, secondaryTree: 8300, perks: [8010, 8299, 8345, 8410, 9104, 9111], shards: [5005, 5008, 5001], matches: 9472, wins: 4717 }
 ];
 
+/** Mirrors scoring::best_rune_option: best win rate (>= 100 games, not the matchup option), then games. */
+function mockBest(opts: RunePage[], gold: number | null): number | null {
+  let best: number | null = null;
+  opts.forEach((p, i) => {
+    if (i === gold || p.matches < 100) return;
+    const b = best === null ? null : opts[best];
+    const diff = b === null ? 1 : p.wins * b.matches - b.wins * p.matches;
+    if (diff > 0 || (diff === 0 && b !== null && p.matches > b.matches)) best = i;
+  });
+  return best;
+}
+
 export async function runeOptions(_lane: Lane, _champion: number, enemy: number | null): Promise<RuneOptions> {
   await delay(400);
   if (mockFlag(OFFLINE_KEY) || mockFlag('lolcounters.mockRunesFail')) throw 'mock: network unreachable';
-  if (mockFlag('lolcounters.mockRunesEmpty')) return { options: [], gold: null, spells: [] };
+  if (mockFlag('lolcounters.mockRunesEmpty')) return { options: [], gold: null, best: null, spells: [], error: null };
+  if (mockFlag('lolcounters.mockRunesPartial')) {
+    const options = [{ ...MOCK_RUNE_OPTIONS[0], shards: [] }];
+    return { options, gold: null, best: mockBest(options, null), spells: [4, 14], error: 'mock: builds timed out' };
+  }
   const gold = enemy !== null && enemy !== 103 ? 1 : null;
-  return { options: MOCK_RUNE_OPTIONS, gold, spells: gold === null ? [4, 14] : [4, 12] };
+  const best = mockBest(MOCK_RUNE_OPTIONS, gold);
+  return { options: MOCK_RUNE_OPTIONS, gold, best, spells: gold === null ? [4, 14] : [4, 12], error: null };
+}
+
+// LC-015: 'lolcounters.mockImport' = 'full' (no free page: asks first) | 'fail' | 'noSpells'.
+export async function importLoadout(_page: RunePage, _spells: number[], confirm: number | null): Promise<ImportOutcome> {
+  await delay(500);
+  let mode: string | null = null;
+  try {
+    mode = localStorage.getItem('lolcounters.mockImport');
+  } catch {
+    /* storage blocked */
+  }
+  if (mode === 'fail') throw 'İstemci isteği reddetti (500)';
+  if (mode === 'full' && confirm === null) return { kind: 'needsConfirm', id: 3, page: 'Benim sayfam' };
+  return { kind: 'done', spells: mode !== 'noSpells' };
 }

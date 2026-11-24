@@ -87,7 +87,11 @@ Dragon'daki ağaç ve slot bilgisiyle yeniden dizer.
   `[ana ağaç, ikincil ağaç, [6 rün], galibiyet, maç]`. Gruplar ve sayfalar
   sırasız gelir. Kullanılan: maça göre en büyük gruplar, her grubun en çok
   oynanan sayfası. Bu dosyada parça yoktur; parçalar ve büyüler overview'dan
-  (8. ve 1. eleman) gelir. Diskte `ugg/{yama}/runes_{key}.json`.
+  (8. ve 1. eleman) gelir; overview yoksa parçalar eşleşme sayfasından. Diskte
+  `ugg/{yama}/runes_{key}.json`. Aynı dosyayı isteyen ikinci çağrı ilk indirmeyi
+  bekler (dosya başına kapı). `builds` ya da overview alınamazsa eldeki seçenekler
+  `error` ile döner (ör. yalnızca overview'un tek sayfası) ve pencerede küçük bir
+  "yeniden dene" düğmesi çıkar; hata önbelleğe yazılmaz.
 - **Eşleşmeye özel overview** (`matchups/{ben}_{rakip}`, `{sürüm}` = `overview`):
   normal overview ile aynı 13 elemanlı biçim, tek rün sayfası. Dikkat: 6.
   eleman burada `[benim kayıplarım, maç]`dır, `[galibiyet, maç]` değil; bu
@@ -175,6 +179,7 @@ yoklama yoktur. Lockfile görününce bağlantı en çok 4 kez denenir (0/1/2/4 
 | `theirTeam[].championId` | Görünen rakipler (0 olmayanlar) |
 | `actions[][].actorCellId`, `championId`, `completed`, `type` | Kilit: benim tamamlanmış `pick` eylemim. Ban aşaması: benim tamamlanmamış `ban` eylemim varsa (kilit yokken) ban önerisi gösterilir; tamamlanmış `ban` eylemlerindeki şampiyonlar öneriden çıkarılır |
 | aşama (`gameflow-phase`) | `ChampSelect` başlangıç; başka her aşama ya da oturum `Delete` bitiş |
+| `myTeam[].spell1Id`, `spell2Id` | Yalnızca "İçe aktar"da, bir kez: takımın büyüleri çözümlenir ama yalnızca benim hücreminki kullanılır (tuş yerleşimi); saklanmaz, gösterilmez |
 
 **Oturum ne zaman kabul edilir** (`lcu.rs` `session_action`): aşama `ChampSelect`
 ya da henüz bilinmiyorsa uygulanır. `Lobby`, `Matchmaking`, `ReadyCheck`
@@ -191,3 +196,37 @@ Atanmış rol yoksa (pozisyonsuz seçim) kullanıcının seçtiği lane kullanı
 (`set_my_lane`). Tahmin yalnızca görünen rakipler ya da lane değişince, olay
 döngüsünü bekletmeden ayrı bir görevde hesaplanır. Lane verisi alınamazsa o
 seçimde yeniden denenmez ve tahmin yapılmaz; rakip elle seçilir.
+
+### İçe aktarma: rün sayfası ve büyüler (LC-015)
+
+Yalnızca kullanıcı küçük pencerede "İçe aktar"a basınca istemciye yazılır; hiçbir
+şey seçilmez, kilitlenmez, banlanmaz. Uç noktalar topluluk belgelerinden alındı,
+gerçek istemcide henüz denenmedi (bkz. TODO.md).
+
+| İstek | Ne için |
+|---|---|
+| `GET /lol-perks/v1/pages` | Kendi sayfalarım: yalnızca `id`, `name`, `isEditable`, `current` okunur |
+| `GET /lol-perks/v1/inventory` | `canAddCustomPage`: boş sayfa yeri var mı (okunamazsa yok sayılır) |
+| `PUT /lol-perks/v1/pages/{id}` | Sayfanın üstüne yazma. Yalnızca uygulamanın "LOLCounters" sayfası reddedilirse `DELETE` + `POST`; kullanıcının onayladığı kendi sayfası hiçbir durumda silinmez (PUT reddedilirse hata gösterilir) |
+| `POST /lol-perks/v1/pages` | Yeni sayfa |
+| `PUT /lol-perks/v1/currentpage` (gövde: id) | Sayfayı seçili yapma |
+| `GET /lol-champ-select/v1/session` | Kendi hücremin `spell1Id`, `spell2Id`'si (tuş yerleşimi; yukarıdaki tablo) |
+| `PATCH /lol-champ-select/v1/session/my-selection` | `{spell1Id, spell2Id}` (1 = D, 2 = F); yalnızca seçim sürerken |
+
+Sayfa gövdesi: `{name: "LOLCounters", primaryStyleId, subStyleId, selectedPerkIds, current: true}`.
+`selectedPerkIds` 9 sayı: ana ağacın ana rünü ve 3 rünü, ikincil ağacın 2 rünü (her biri
+Data Dragon'daki sıraya göre; u.gg sayıca sıralı verdiği için `ddragon::order_perks`
+yeniden dizer), sonra 3 parça (saldırı, esnek, savunma).
+
+Nereye yazılır (`lcu::import_target`):
+
+1. Adı "LOLCounters" olan düzenlenebilir sayfa varsa sormadan onun üstüne.
+2. Yoksa ve yer varsa yeni sayfa.
+3. Yer yoksa seçili (o düzenlenemiyorsa ilk) düzenlenebilir sayfa için pencerede
+   onay istenir; onaydan sonra o sayfa hâlâ aynıysa üstüne yazılır ve adı
+   "LOLCounters" olur (sonraki aktarmada yeniden sorulmaz).
+
+Büyüler: şu an D ya da F'de olan büyü aynı tuşta kalır (ör. Flash), yoksa u.gg sırası
+(`lcu::order_spells`). Aynı anda tek içe aktarma çalışır (üst üste tıklama ikinci
+"LOLCounters" sayfası açmaz). Parçası olmayan sayfa (overview alınamadı) içe
+aktarılmaz; eski rakibin sayfası, yenisi gelene kadar soluk görünür ve aktarılamaz.
