@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## LC-012 — Küçük pencere seçim başında lane'siz açılıyor
+Başlangıç 2026-11-24 · Durum: uygulandı, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
+
+> ### 2026-11-24 · Claude — Fix: seçimden önce gelen oturum saklanıyor
+> - **Ne:** istemci oturumu `ChampSelect` aşamasından önce gönderirse (`ReadyCheck` vb. sırasında) oturum artık atılmıyor, saklanıyor (`Inner.pending`) ve aşama gelince uygulanıyor; oyun başladıktan sonra gelen oturum eskisi gibi yok sayılıyor (`session_action`). Geliştirme sürümü gelen olayların sırasını terminale yazıyor
+> - **Neden:** kullanıcı seçim başında lane'in geç geldiğini / takıldığını gördü; araştırma (3 bakış açısı + doğrulama) en olası nedeni bu buldu: pencere lane'siz açılıp "Lane'in belli değil" gösteriyor, lane ancak istemcinin sonraki güncellemesiyle geliyordu. Olay sırası gerçek istemcide henüz görülmedi
+> - **Etkilenen:** LC-008 (`lcu.rs` `Inner::apply`)
+> - **Dosyalar:** src-tauri/src/lcu.rs, docs/data-sources.md, TODO.md
+> - **Commit:** —
+
 ## LC-011 — Ban önerisi: gösterdiğin şampiyonun counter'ları
 Başlangıç 2026-11-24 · Durum: main'de, canlı test edilmedi (bkz. TODO.md) · İlgili: LC-008, LC-009
 
@@ -68,6 +78,8 @@ Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-006, LC-009
 > - **Commit:** 64ed8ba
 >
 > ### 2026-11-24 · Claude — → LC-011 tarafından değiştirildi
+>
+> ### 2026-11-24 · Claude — → LC-012 tarafından değiştirildi
 
 ## LC-007 — Kolay açılış: simge, kurulum, tepsi, tek kopya, autostart
 Başlangıç 2026-11-22 · Durum: canlı test edildi · İlgili: LC-001, LC-003, LC-004
