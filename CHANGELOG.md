@@ -6,7 +6,7 @@ Başlangıç 2026-11-25 · Durum: yayınlandı (GitHub Release v0.1.2) · İlgil
 > ### 2026-11-25 · Claude — v0.1.2 yayını
 > - **Ne:** sürüm 0.1.0 → 0.1.2 (`package.json`, `Cargo.toml`, `tauri.conf.json`; kullanıcının seçtiği numara, 0.1.1 atlandı); kurulum dosyası GitHub Release v0.1.2'ye yüklendi. İçerik: LC-011–LC-017 (ban önerisi, lane gecikmesi düzeltmesi, rün kartları, içe aktarma, bot lane sinerjisi); bunlar gerçek istemcide canlı test edilmeden yayınlandı (bkz. TODO.md)
 > - **Dosyalar:** package.json, package-lock.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, src-tauri/tauri.conf.json, README.md
-> - **Commit:** —
+> - **Commit:** 4f9ddec
 
 ## LC-017 — Bot lane sinerjisi arayüzü: Counter / Sinerji sekmeleri
 Başlangıç 2026-11-24 · Durum: main'de (merge 0538411), canlı test edilmedi (bkz. TODO.md) · İlgili: LC-009, LC-016
