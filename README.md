@@ -48,7 +48,7 @@ Ayrıntılar (tepsi, Windows açılınca başlatma): aşağıda
 ## Kurulum ve günlük kullanım
 
 - **Kurulum dosyası üretmek:** `npm run tauri build` →
-  `src-tauri/target/release/bundle/nsis/LOLCounters_0.1.0_x64-setup.exe`.
+  `src-tauri/target/release/bundle/nsis/LOLCounters_<sürüm>_x64-setup.exe`.
   Yalnızca bu kullanıcıya kurar (yönetici izni istemez,
   `%LOCALAPPDATA%\LOLCounters`). Başlat menüsü kısayolu her zaman eklenir;
   masaüstü kısayolu son sayfadaki kutuyla (varsayılan işaretli) eklenir.
